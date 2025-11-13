@@ -1,12 +1,20 @@
 import express from "express";
 import { signup, login, refreshToken } from "../controllers/user.controller.js";
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
+import { addToBlacklist } from "../utils/tokenBlacklist.js";
 
 const router = express.Router();
 
 router.post("/signup", signup);
 router.post("/login", login);
 router.post("/refresh-token", refreshToken);
+
+// ✅ LOGOUT
+router.post("/logout", verifyToken, (req, res) => {
+  const token = req.header("Authorization")?.replace("Bearer ", "");
+  addToBlacklist(token);
+  res.status(200).json({ message: "Logged out successfully" });
+});
 
 // ✅ Protected Routes
 router.get("/profile", verifyToken, (req, res) => {
