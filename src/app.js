@@ -6,6 +6,7 @@ import passport from "passport";
 import connectDB from "./config/db.js";
 import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import orderRoutes from "./routes/order.routes.js";
 import "./config/passport.js"; // import passport config
 
 dotenv.config();
@@ -29,5 +30,6 @@ app.use(passport.session());
 // Routes
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/orders", orderRoutes);
 
 export default app;
