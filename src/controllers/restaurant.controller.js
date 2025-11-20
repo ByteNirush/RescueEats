@@ -12,7 +12,7 @@ export const createRestaurant = async (req, res) => {
       cuisines,
       image,
       openingTime,
-      closingTime
+      closingTime,
     } = req.body;
 
     if (!owner || !name || !address || !phone || !openingTime || !closingTime) {
@@ -28,10 +28,12 @@ export const createRestaurant = async (req, res) => {
       cuisines,
       image,
       openingTime,
-      closingTime
+      closingTime,
     });
 
-    res.status(201).json({ message: "Restaurant created successfully", restaurant });
+    res
+      .status(201)
+      .json({ message: "Restaurant created successfully", restaurant });
   } catch (err) {
     console.error("createRestaurant:", err);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -50,15 +52,18 @@ export const getRestaurants = async (req, res) => {
     if (isOpen !== undefined) filter.isOpen = isOpen === "true";
 
     const [restaurants, count] = await Promise.all([
-      Restaurant.find(filter).skip(Number(skip)).limit(Number(limit)).sort({ createdAt: -1 }),
-      Restaurant.countDocuments(filter)
+      Restaurant.find(filter)
+        .skip(Number(skip))
+        .limit(Number(limit))
+        .sort({ createdAt: -1 }),
+      Restaurant.countDocuments(filter),
     ]);
 
     res.json({
       restaurants,
       total: count,
       page: Number(page),
-      pages: Math.ceil(count / limit)
+      pages: Math.ceil(count / limit),
     });
   } catch (err) {
     console.error("getRestaurants:", err);
@@ -90,7 +95,10 @@ export const updateRestaurant = async (req, res) => {
       return res.status(404).json({ message: "Restaurant not found" });
 
     // Auth: Only restaurant owner or admin
-    if (req.user.role !== "admin" && restaurant.owner.toString() !== req.user.id) {
+    if (
+      req.user.role !== "admin" &&
+      restaurant.owner.toString() !== req.user.id
+    ) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -133,15 +141,39 @@ export const toggleStatus = async (req, res) => {
     if (!restaurant || restaurant.isDeleted)
       return res.status(404).json({ message: "Restaurant not found" });
 
-    if (req.user.role !== "admin" && restaurant.owner.toString() !== req.user.id)
+    if (
+      req.user.role !== "admin" &&
+      restaurant.owner.toString() !== req.user.id
+    )
       return res.status(403).json({ message: "Access denied" });
 
     restaurant.isOpen = !restaurant.isOpen;
     await restaurant.save();
 
-    res.json({ message: `Restaurant is now ${restaurant.isOpen ? "OPEN" : "CLOSED"}`, restaurant });
+    res.json({
+      message: `Restaurant is now ${restaurant.isOpen ? "OPEN" : "CLOSED"}`,
+      restaurant,
+    });
   } catch (err) {
     console.error("toggleStatus:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// Get restaurant menu (Public)
+export const getRestaurantMenu = async (req, res) => {
+  try {
+    const restaurant = await Restaurant.findById(req.params.id);
+    if (!restaurant || restaurant.isDeleted)
+      return res.status(404).json({ message: "Restaurant not found" });
+
+    res.json({
+      restaurantId: restaurant._id,
+      name: restaurant.name,
+      menu: restaurant.menu,
+    });
+  } catch (err) {
+    console.error("getRestaurantMenu:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
@@ -156,7 +188,10 @@ export const addMenuItem = async (req, res) => {
     if (!restaurant || restaurant.isDeleted)
       return res.status(404).json({ message: "Restaurant not found" });
 
-    if (req.user.role !== "admin" && restaurant.owner.toString() !== req.user.id)
+    if (
+      req.user.role !== "admin" &&
+      restaurant.owner.toString() !== req.user.id
+    )
       return res.status(403).json({ message: "Access denied" });
 
     restaurant.menu.push({ name, price, description, image });

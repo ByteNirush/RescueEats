@@ -6,7 +6,8 @@ import {
   updateRestaurant,
   deleteRestaurant,
   toggleStatus,
-  addMenuItem
+  addMenuItem,
+  getRestaurantMenu,
 } from "../controllers/restaurant.controller.js";
 
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
@@ -27,6 +28,9 @@ router.put("/:id", verifyToken, updateRestaurant);
 
 // OWNER / ADMIN: toggle open/close
 router.patch("/:id/toggle", verifyToken, toggleStatus);
+
+// PUBLIC: get restaurant menu
+router.get("/:id/menu", getRestaurantMenu);
 
 // OWNER / ADMIN: add menu item
 router.post("/:id/menu", verifyToken, addMenuItem);
