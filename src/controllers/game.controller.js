@@ -1,8 +1,8 @@
 // src/controllers/game.controller.js
-const Game = require("../models/game.model");
-const User = require("../models/user.model");
+import Game from "../models/game.model.js";
+import User from "../models/user.model.js";
 
-exports.initGame = async (req, res) => {
+export const initGame = async (req, res) => {
   try {
     const userId = req.user.id;
     let game = await Game.findOne({ user: userId });
@@ -18,7 +18,7 @@ exports.initGame = async (req, res) => {
   }
 };
 
-exports.updateScore = async (req, res) => {
+export const updateScore = async (req, res) => {
   try {
     const userId = req.user.id;
     const { coins, xp } = req.body;
@@ -29,7 +29,12 @@ exports.updateScore = async (req, res) => {
 
     let game = await Game.findOne({ user: userId });
     if (!game) {
-      game = await Game.create({ user: userId, coins, xp, level: Math.floor(xp/100)+1 });
+      game = await Game.create({
+        user: userId,
+        coins,
+        xp,
+        level: Math.floor(xp / 100) + 1,
+      });
       return res.json({ success: true, game });
     }
 
@@ -52,7 +57,7 @@ exports.updateScore = async (req, res) => {
   }
 };
 
-exports.dailyReward = async (req, res) => {
+export const dailyReward = async (req, res) => {
   try {
     const userId = req.user.id;
     let game = await Game.findOne({ user: userId });
@@ -65,13 +70,18 @@ exports.dailyReward = async (req, res) => {
       return res.json({ success: false, message: "Already claimed" });
     }
 
+    // Check if user logged in yesterday to maintain streak
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const wasYesterday = game.lastLogin === yesterday.toDateString();
+
     // Reward scaling: base 5 coins, +1 for streak every 3 days (example)
     const baseReward = 5;
     const streakBonus = Math.floor(game.dailyStreak / 3);
     const reward = baseReward + streakBonus;
 
+    game.dailyStreak = wasYesterday ? game.dailyStreak + 1 : 1;
     game.lastLogin = today;
-    game.dailyStreak = (game.lastLogin === today) ? game.dailyStreak : game.dailyStreak + 1;
     game.coins += reward;
 
     await game.save();
@@ -83,7 +93,7 @@ exports.dailyReward = async (req, res) => {
   }
 };
 
-exports.getLeaderboard = async (req, res) => {
+export const getLeaderboard = async (req, res) => {
   try {
     const top = await Game.find()
       .populate("user", "name email") // adjust field names for your User model
@@ -99,13 +109,13 @@ exports.getLeaderboard = async (req, res) => {
 };
 
 // Optional: purchase powerup endpoint (spend coins)
-exports.buyPowerup = async (req, res) => {
+export const buyPowerup = async (req, res) => {
   try {
     const userId = req.user.id;
     const { type } = req.body; // 'magnet'|'slow'|'doubleCoin'
     const costMap = { magnet: 10, slow: 8, doubleCoin: 12 };
 
-    if (!["magnet","slow","doubleCoin"].includes(type)) {
+    if (!["magnet", "slow", "doubleCoin"].includes(type)) {
       return res.status(400).json({ message: "Invalid powerup type" });
     }
 
