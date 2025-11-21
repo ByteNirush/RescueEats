@@ -1,3 +1,4 @@
+// src/controllers/game.controller.js
 import Game from "../models/game.model.js";
 import User from "../models/user.model.js";
 
