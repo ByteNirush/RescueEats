@@ -1,11 +1,15 @@
 const express = require("express");
 const router = express.Router();
-const auth = require("../middlewares/auth.middleware");
-const game = require("../controllers/game.controller");
+const gameController = require("../controllers/game.controller");
+const authMiddleware = require("../middleware/auth.middleware");
 
-router.get("/init", auth, game.initGame);
-router.post("/update", auth, game.updateScore);
-router.post("/daily", auth, game.dailyReward);
-router.get("/leaderboard", auth, game.leaderboard);
+// All routes require authentication
+router.use(authMiddleware);
+
+router.post("/init", gameController.initGame);
+router.post("/update-score", gameController.updateScore);
+router.post("/daily-reward", gameController.dailyReward);
+router.get("/leaderboard", gameController.getLeaderboard);
+router.post("/buy-powerup", gameController.buyPowerup);
 
 module.exports = router;
