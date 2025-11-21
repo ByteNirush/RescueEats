@@ -1,12 +1,12 @@
 // src/models/game.model.js
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const GameSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
-    unique: true
+    unique: true,
   },
 
   coins: { type: Number, default: 0 },
@@ -24,12 +24,12 @@ const GameSchema = new mongoose.Schema({
   },
 
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+  updatedAt: { type: Date, default: Date.now },
 });
 
-GameSchema.pre("save", function(next) {
+GameSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
   next();
 });
 
-module.exports = mongoose.model("Game", GameSchema);
+export default mongoose.model("Game", GameSchema);
