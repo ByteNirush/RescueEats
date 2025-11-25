@@ -8,6 +8,7 @@ import {
   toggleStatus,
   addMenuItem,
   getRestaurantMenu,
+  getMyRestaurants,
 } from "../controllers/restaurant.controller.js";
 
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
@@ -19,6 +20,9 @@ router.post("/", verifyToken, authorizeRoles("admin"), createRestaurant);
 
 // PUBLIC: get restaurants
 router.get("/", getRestaurants);
+
+// OWNER: get my restaurants (must be before /:id to avoid conflict)
+router.get("/my-restaurants", verifyToken, authorizeRoles("restaurant", "admin"), getMyRestaurants);
 
 // PUBLIC: get single restaurant
 router.get("/:id", getRestaurantById);

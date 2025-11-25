@@ -203,3 +203,21 @@ export const addMenuItem = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
+// Get restaurants owned by current user (Restaurant Owner)
+export const getMyRestaurants = async (req, res) => {
+  try {
+    const restaurants = await Restaurant.find({
+      owner: req.user.id,
+      isDeleted: false,
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      restaurants,
+      count: restaurants.length,
+    });
+  } catch (err) {
+    console.error("getMyRestaurants:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
