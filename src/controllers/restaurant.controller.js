@@ -74,7 +74,10 @@ export const getRestaurants = async (req, res) => {
 // Get single restaurant
 export const getRestaurantById = async (req, res) => {
   try {
-    const restaurant = await Restaurant.findById(req.params.id);
+    const restaurant = await Restaurant.findById(req.params.id).populate(
+      "owner",
+      "name email phone"
+    );
     if (!restaurant || restaurant.isDeleted)
       return res.status(404).json({ message: "Restaurant not found" });
 
@@ -218,6 +221,38 @@ export const getMyRestaurants = async (req, res) => {
     });
   } catch (err) {
     console.error("getMyRestaurants:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// Assign owner to restaurant (ADMIN ONLY)
+export const assignOwner = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ownerId } = req.body;
+
+    if (!ownerId) {
+      return res.status(400).json({ message: "Owner ID is required" });
+    }
+
+    const restaurant = await Restaurant.findById(id);
+    if (!restaurant || restaurant.isDeleted) {
+      return res.status(404).json({ message: "Restaurant not found" });
+    }
+
+    // Update owner
+    restaurant.owner = ownerId;
+    await restaurant.save();
+
+    // Populate owner details for response
+    await restaurant.populate("owner", "name email phone");
+
+    res.json({
+      message: "Owner assigned successfully",
+      restaurant,
+    });
+  } catch (err) {
+    console.error("assignOwner:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };

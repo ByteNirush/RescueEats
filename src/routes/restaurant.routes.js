@@ -9,6 +9,7 @@ import {
   addMenuItem,
   getRestaurantMenu,
   getMyRestaurants,
+  assignOwner,
 } from "../controllers/restaurant.controller.js";
 
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
@@ -29,6 +30,9 @@ router.get("/:id", getRestaurantById);
 
 // OWNER / ADMIN: update restaurant
 router.put("/:id", verifyToken, updateRestaurant);
+
+// ADMIN: assign owner to restaurant
+router.post("/:id/assign-owner", verifyToken, authorizeRoles("admin"), assignOwner);
 
 // OWNER / ADMIN: toggle open/close
 router.patch("/:id/toggle", verifyToken, toggleStatus);
