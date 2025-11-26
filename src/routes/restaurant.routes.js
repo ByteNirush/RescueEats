@@ -1,30 +1,38 @@
 import express from "express";
 import {
-  createRestaurant,
-  getRestaurants,
-  getRestaurantById,
-  updateRestaurant,
-  deleteRestaurant,
-  toggleStatus,
-  addMenuItem,
-  getRestaurantMenu,
+ createRestaurant,
+ getRestaurants,
+ getRestaurantById,
+ updateRestaurant,
+ deleteRestaurant,
+ toggleStatus,
+ addMenuItem,
+ getRestaurantMenu,
+ getMyRestaurants,
+ assignOwner,
 } from "../controllers/restaurant.controller.js";
 
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-// ADMIN: create restaurant
-router.post("/", verifyToken, authorizeRoles("admin"), createRestaurant);
+// OWNER or ADMIN: create restaurant
+router.post("/", verifyToken, authorizeRoles("restaurant", "admin"), createRestaurant);
 
 // PUBLIC: get restaurants
 router.get("/", getRestaurants);
+
+// OWNER: get my restaurants (must be before /:id to avoid conflict)
+router.get("/my-restaurants", verifyToken, authorizeRoles("restaurant", "admin"), getMyRestaurants);
 
 // PUBLIC: get single restaurant
 router.get("/:id", getRestaurantById);
 
 // OWNER / ADMIN: update restaurant
 router.put("/:id", verifyToken, updateRestaurant);
+
+// ADMIN: assign owner to restaurant
+router.post("/:id/assign-owner", verifyToken, authorizeRoles("admin"), assignOwner);
 
 // OWNER / ADMIN: toggle open/close
 router.patch("/:id/toggle", verifyToken, toggleStatus);

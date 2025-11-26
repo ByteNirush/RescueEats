@@ -141,3 +141,24 @@ export const refreshToken = async (req, res) => {
     res.status(401).json({ message: "Invalid or expired refresh token" });
   }
 };
+
+// Get all users (ADMIN ONLY)
+export const getAllUsers = async (req, res) => {
+  try {
+    const { role } = req.query;
+
+    const filter = {};
+    if (role) {
+      filter.role = role;
+    }
+
+    const users = await User.find(filter).select("-password").sort({ createdAt: -1 });
+
+    res.status(200).json({
+      users,
+      count: users.length,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};

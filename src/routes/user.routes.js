@@ -1,5 +1,5 @@
 import express from "express";
-import { signup, login, refreshToken } from "../controllers/user.controller.js";
+import { signup, login, refreshToken, getAllUsers } from "../controllers/user.controller.js";
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { addToBlacklist } from "../utils/tokenBlacklist.js";
 
@@ -20,6 +20,9 @@ router.post("/logout", verifyToken, (req, res) => {
 router.get("/profile", verifyToken, (req, res) => {
   res.json({ message: "Profile accessed", user: req.user });
 });
+
+// ✅ Get all users (Admin only)
+router.get("/", verifyToken, authorizeRoles("admin"), getAllUsers);
 
 // ✅ Only Admin Access
 router.get(
