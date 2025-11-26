@@ -1,23 +1,23 @@
 import express from "express";
 import {
-  createRestaurant,
-  getRestaurants,
-  getRestaurantById,
-  updateRestaurant,
-  deleteRestaurant,
-  toggleStatus,
-  addMenuItem,
-  getRestaurantMenu,
-  getMyRestaurants,
-  assignOwner,
+ createRestaurant,
+ getRestaurants,
+ getRestaurantById,
+ updateRestaurant,
+ deleteRestaurant,
+ toggleStatus,
+ addMenuItem,
+ getRestaurantMenu,
+ getMyRestaurants,
+ assignOwner,
 } from "../controllers/restaurant.controller.js";
 
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-// ADMIN: create restaurant
-router.post("/", verifyToken, authorizeRoles("admin"), createRestaurant);
+// OWNER or ADMIN: create restaurant
+router.post("/", verifyToken, authorizeRoles("restaurant", "admin"), createRestaurant);
 
 // PUBLIC: get restaurants
 router.get("/", getRestaurants);
