@@ -3,6 +3,7 @@ import app from "./app.js";
 import { Server as IOServer } from "socket.io";
 
 const PORT = process.env.PORT || 5000;
+
 const server = http.createServer(app);
 
 // Create socket.io server
