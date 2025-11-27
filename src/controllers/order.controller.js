@@ -56,12 +56,12 @@ export const createOrder = async (req, res) => {
 
     for (const item of items) {
       const menuItem = restaurant.menu.find(
-        (m) => m._id.toString() === item.menuId
+        (m) => m._id.toString() === (item.menuId || item.menuItem) // Support both
       );
 
       if (!menuItem) {
         return res.status(400).json({
-          message: `Menu item ${item.menuId} does not belong to this restaurant`,
+          message: `Menu item ${item.menuId || item.menuItem} does not belong to this restaurant`,
         });
       }
 
@@ -71,6 +71,7 @@ export const createOrder = async (req, res) => {
         productId: menuItem._id,
         name: menuItem.name,
         price: menuItem.price,
+        image: menuItem.image, // Copy image
         qty: qty,
         notes: item.notes || ""
       });

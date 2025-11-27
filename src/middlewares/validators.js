@@ -17,7 +17,14 @@ export const handleValidationErrors = (req, res, next) => {
 export const validateOrder = [
     body('restaurantId').isMongoId().withMessage('Invalid restaurant ID'),
     body('items').isArray({ min: 1 }).withMessage('At least 1 item required'),
-    body('items.*.menuId').isMongoId().withMessage('Invalid menu item ID'),
+    // body('items.*.menuId').isMongoId().withMessage('Invalid menu item ID'),
+    body('items.*').custom((item) => {
+        const id = item.menuId || item.menuItem;
+        if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+            throw new Error('Invalid menu item ID');
+        }
+        return true;
+    }),
     body('items.*.quantity').isInt({ min: 1, max: 99 }).withMessage('Quantity must be between 1-99'),
     body('deliveryAddress').trim().isLength({ min: 5, max: 200 }).withMessage('Address must be 5-200 characters'),
     body('contactPhone').matches(/^98\d{8}$/).withMessage('Invalid Nepal phone number (must be 98XXXXXXXX)'),
