@@ -39,7 +39,7 @@ const calculatePricing = ({
 // Create new order (Customer)
 export const createOrder = async (req, res) => {
   try {
-    const { restaurantId, items, paymentMethod, deliveryAddress } = req.body;
+    const { restaurantId, items, paymentMethod, deliveryAddress, contactPhone } = req.body;
 
     if (!restaurantId || !items || items.length === 0)
       return res
@@ -52,7 +52,6 @@ export const createOrder = async (req, res) => {
       return res.status(404).json({ message: "Restaurant not found" });
 
     // 2) Validate Items from Restaurant Menu
-    let totalAmount = 0;
     const orderItems = [];
 
     for (const item of items) {
@@ -67,27 +66,53 @@ export const createOrder = async (req, res) => {
       }
 
       const qty = item.quantity || 1;
-      const itemTotal = menuItem.price * qty;
-      totalAmount += itemTotal;
 
       orderItems.push({
-        menuId: menuItem._id,
+        menuId: menuItem._id, // Schema expects 'menuId' inside items? No, schema has 'name', 'qty', 'price'
+        // Wait, OrderSchema items definition:
+        // items: { type: [OrderItemSchema], required: true }
+        // OrderItemSchema: { productId, name, qty, price, notes }
+        // The previous code was pushing { menuId, name, price, quantity, subtotal }
+        // We need to align with OrderItemSchema.
+        // Let's assume 'menuId' maps to 'productId' if we want to link it, or just keep it as is if schema is loose.
+        // Looking at OrderSchema: productId is optional ref to Product.
+        // We should probably map menuId -> productId for consistency if possible, or just ignore if not strictly used.
+        // BUT, 'qty' is required in schema, previous code used 'quantity'.
+        // 'price' is required. 'name' is required.
+
+        productId: menuItem._id, // Map menuId to productId
         name: menuItem.name,
         price: menuItem.price,
-        quantity: qty,
-        subtotal: itemTotal,
+        qty: qty, // Schema uses 'qty'
+        notes: item.notes || ""
       });
     }
 
-    // 3) Create Order
+    // 3) Calculate Pricing
+    const pricing = calculatePricing({
+      items: orderItems,
+      deliveryCharge: 50, // Fixed delivery charge for now
+      taxRate: 0.0, // No tax for now or 0.13
+    });
+
+    // 4) Create Order
     const order = await Order.create({
-      user: req.user.id,
+      customer: req.user.id, // Fixed: use 'customer' instead of 'user'
       restaurant: restaurantId,
       items: orderItems,
-      totalAmount,
+
+      // Pricing fields required by schema
+      subtotal: pricing.subtotal,
+      tax: pricing.tax,
+      deliveryCharge: pricing.deliveryCharge,
+      serviceCharge: pricing.serviceCharge,
+      discount: pricing.discount,
+      total: pricing.total,
+
       paymentMethod,
       deliveryAddress,
-      status: "Pending",
+      contactPhone, // Required field
+      status: "pending",
     });
 
     // Emit real-time event: new order for restaurant dashboards
