@@ -10,10 +10,15 @@ import {
   registerFcmToken,
   getUserStats
 } from "../controllers/user.controller.js";
+import { signup, login } from "../controllers/auth.controller.js";
 import { verifyToken } from "../middlewares/auth.middleware.js";
 import { validateAddress, validateFcmToken } from "../middlewares/validators.js";
 
 const router = express.Router();
+
+// Authentication (public routes)
+router.post("/signup", signup);
+router.post("/login", login);
 
 // Profile
 router.get("/me", verifyToken, getProfile);
