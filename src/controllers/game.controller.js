@@ -96,7 +96,7 @@ export const dailyReward = async (req, res) => {
 export const getLeaderboard = async (req, res) => {
   try {
     const top = await Game.find()
-      .populate("user", "name email") // adjust field names for your User model
+      .populate("user", "name email")
       .sort({ coins: -1 })
       .limit(20)
       .exec();
@@ -135,6 +135,65 @@ export const buyPowerup = async (req, res) => {
     res.json({ success: true, game });
   } catch (err) {
     console.error("buyPowerup:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/**
+ * Unlock Achievement
+ * POST /api/game/achievements/unlock
+ */
+export const unlockAchievement = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { achievementId, reward = 0 } = req.body;
+
+    let game = await Game.findOne({ user: userId });
+    if (!game) game = await Game.create({ user: userId });
+
+    // Check if already unlocked
+    const existing = game.achievements.find(a => a.id === achievementId);
+    if (existing) {
+      return res.json({ success: false, message: "Already unlocked" });
+    }
+
+    // Add achievement
+    game.achievements.push({
+      id: achievementId,
+      unlockedAt: new Date(),
+      reward
+    });
+
+    // Add reward coins
+    if (reward > 0) {
+      game.coins += reward;
+    }
+
+    await game.save();
+
+    res.json({ success: true, game, achievement: { id: achievementId, reward } });
+  } catch (err) {
+    console.error("unlockAchievement:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/**
+ * Get User Achievements
+ * GET /api/game/achievements
+ */
+export const getAchievements = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const game = await Game.findOne({ user: userId });
+
+    if (!game) {
+      return res.json({ success: true, achievements: [] });
+    }
+
+    res.json({ success: true, achievements: game.achievements });
+  } catch (err) {
+    console.error("getAchievements:", err);
     res.status(500).json({ message: err.message });
   }
 };

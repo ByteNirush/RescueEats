@@ -1,7 +1,5 @@
 import Restaurant from "../models/restaurant.model.js";
 
-
-// Create restaurant (OWNER or ADMIN)
 export const createRestaurant = async (req, res) => {
   try {
     const {
@@ -20,18 +18,13 @@ export const createRestaurant = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-
-    // Use ownerId from JWT token
     const ownerId = req.user.id;
 
-
-    // For restaurant role: check if they already own a restaurant
     if (req.user.role === "restaurant") {
       const existingRestaurant = await Restaurant.findOne({
         owner: ownerId,
         isDeleted: false,
       });
-
 
       if (existingRestaurant) {
         return res.status(400).json({
@@ -52,7 +45,6 @@ export const createRestaurant = async (req, res) => {
       openingTime,
       closingTime,
     });
-
 
     res
       .status(201)

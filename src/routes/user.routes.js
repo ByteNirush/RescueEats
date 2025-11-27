@@ -1,47 +1,34 @@
+// src/routes/user.routes.js
 import express from "express";
-import { signup, login, refreshToken, getAllUsers } from "../controllers/user.controller.js";
-import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
-import { addToBlacklist } from "../utils/tokenBlacklist.js";
+import {
+  getProfile,
+  updateProfile,
+  getAddresses,
+  addAddress,
+  updateAddress,
+  deleteAddress,
+  registerFcmToken,
+  getUserStats
+} from "../controllers/user.controller.js";
+import { verifyToken } from "../middlewares/auth.middleware.js";
+import { validateAddress, validateFcmToken } from "../middlewares/validators.js";
 
 const router = express.Router();
 
-router.post("/signup", signup);
-router.post("/login", login);
-router.post("/refresh-token", refreshToken);
+// Profile
+router.get("/me", verifyToken, getProfile);
+router.patch("/me", verifyToken, updateProfile);
 
-// ✅ LOGOUT
-router.post("/logout", verifyToken, (req, res) => {
-  const token = req.header("Authorization")?.replace("Bearer ", "");
-  addToBlacklist(token);
-  res.status(200).json({ message: "Logged out successfully" });
-});
+// Addresses
+router.get("/me/addresses", verifyToken, getAddresses);
+router.post("/me/addresses", verifyToken, validateAddress, addAddress);
+router.put("/me/addresses/:addressId", verifyToken, validateAddress, updateAddress);
+router.delete("/me/addresses/:addressId", verifyToken, deleteAddress);
 
-// ✅ Protected Routes
-router.get("/profile", verifyToken, (req, res) => {
-  res.json({ message: "Profile accessed", user: req.user });
-});
+// FCM Token
+router.post("/fcm-token", verifyToken, validateFcmToken, registerFcmToken);
 
-// ✅ Get all users (Admin only)
-router.get("/", verifyToken, authorizeRoles("admin"), getAllUsers);
-
-// ✅ Only Admin Access
-router.get(
-  "/admin/dashboard",
-  verifyToken,
-  authorizeRoles("admin"),
-  (req, res) => {
-    res.json({ message: "Welcome Admin Dashboard" });
-  }
-);
-
-// ✅ Only Restaurant Owners
-router.get(
-  "/restaurant/dashboard",
-  verifyToken,
-  authorizeRoles("restaurant"),
-  (req, res) => {
-    res.json({ message: "Welcome Restaurant Dashboard" });
-  }
-);
+// Stats
+router.get("/me/stats", verifyToken, getUserStats);
 
 export default router;

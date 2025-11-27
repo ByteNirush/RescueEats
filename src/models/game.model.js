@@ -1,6 +1,12 @@
 // src/models/game.model.js
 import mongoose from "mongoose";
 
+const AchievementSchema = new mongoose.Schema({
+  id: { type: String, required: true }, // "catcher_100", "combo_15", etc.
+  unlockedAt: { type: Date, default: Date.now },
+  reward: { type: Number, default: 0 } // Coins rewarded
+}, { _id: false });
+
 const GameSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -15,6 +21,12 @@ const GameSchema = new mongoose.Schema({
 
   dailyStreak: { type: Number, default: 0 },
   lastLogin: { type: String, default: "" },
+
+  // Meals Rescued Counter
+  mealsRescued: { type: Number, default: 0 },
+
+  // Achievements
+  achievements: { type: [AchievementSchema], default: [] },
 
   // Track inventory of powerups
   powerups: {
@@ -31,5 +43,10 @@ GameSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
   next();
 });
+
+// Indexes
+GameSchema.index({ user: 1 });
+GameSchema.index({ coins: -1 }); // For leaderboard
+GameSchema.index({ mealsRescued: -1 }); // For environmental impact stats
 
 export default mongoose.model("Game", GameSchema);
