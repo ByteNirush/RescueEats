@@ -178,6 +178,7 @@ export const unlockAchievement = async (req, res) => {
   }
 };
 
+
 /**
  * Get User Achievements
  * GET /api/game/achievements
@@ -194,6 +195,113 @@ export const getAchievements = async (req, res) => {
     res.json({ success: true, achievements: game.achievements });
   } catch (err) {
     console.error("getAchievements:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/**
+ * Get Energy Status
+ * GET /api/game/energy
+ */
+export const getEnergy = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    let game = await Game.findOne({ user: userId });
+
+    if (!game) {
+      game = await Game.create({ user: userId });
+    }
+
+    // Regenerate energy based on time passed
+    const now = new Date();
+    const lastUpdate = new Date(game.lastEnergyUpdate);
+    const minutesPassed = Math.floor((now - lastUpdate) / (1000 * 60));
+    const energyToAdd = Math.floor(minutesPassed / 30); // 1 energy per 30 min
+
+    if (energyToAdd > 0) {
+      game.currentEnergy = Math.min(
+        game.maxEnergy,
+        game.currentEnergy + energyToAdd
+      );
+      game.lastEnergyUpdate = new Date(
+        lastUpdate.getTime() + energyToAdd * 30 * 60 * 1000
+      );
+      await game.save();
+    }
+
+    // Calculate time until next energy
+    const minutesSinceLastUpdate = Math.floor(
+      (now - new Date(game.lastEnergyUpdate)) / (1000 * 60)
+    );
+    const minutesUntilNext =
+      game.currentEnergy < game.maxEnergy
+        ? 30 - minutesSinceLastUpdate
+        : null;
+
+    res.json({
+      success: true,
+      energy: {
+        current: game.currentEnergy,
+        max: game.maxEnergy,
+        minutesUntilNext: minutesUntilNext,
+      },
+    });
+  } catch (err) {
+    console.error("getEnergy:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/**
+ * Use Energy (deduct 1 energy)
+ * POST /api/game/energy/use
+ */
+export const useEnergy = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    let game = await Game.findOne({ user: userId });
+
+    if (!game) {
+      return res.status(404).json({ message: "Game not found" });
+    }
+
+    // Regenerate energy first
+    const now = new Date();
+    const lastUpdate = new Date(game.lastEnergyUpdate);
+    const minutesPassed = Math.floor((now - lastUpdate) / (1000 * 60));
+    const energyToAdd = Math.floor(minutesPassed / 30);
+
+    if (energyToAdd > 0) {
+      game.currentEnergy = Math.min(
+        game.maxEnergy,
+        game.currentEnergy + energyToAdd
+      );
+      game.lastEnergyUpdate = new Date(
+        lastUpdate.getTime() + energyToAdd * 30 * 60 * 1000
+      );
+    }
+
+    // Check if user has energy
+    if (game.currentEnergy <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Not enough energy",
+      });
+    }
+
+    // Deduct energy
+    game.currentEnergy -= 1;
+    await game.save();
+
+    res.json({
+      success: true,
+      energy: {
+        current: game.currentEnergy,
+        max: game.maxEnergy,
+      },
+    });
+  } catch (err) {
+    console.error("useEnergy:", err);
     res.status(500).json({ message: err.message });
   }
 };

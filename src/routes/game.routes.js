@@ -6,7 +6,9 @@ import {
   getLeaderboard,
   buyPowerup,
   unlockAchievement,
-  getAchievements
+  getAchievements,
+  getEnergy,
+  useEnergy
 } from "../controllers/game.controller.js";
 import { verifyToken } from "../middlewares/auth.middleware.js";
 import { validateAchievement } from "../middlewares/validators.js";
@@ -31,5 +33,9 @@ router.post("/powerup/buy", verifyToken, buyPowerup);
 // Achievements
 router.get("/achievements", verifyToken, getAchievements);
 router.post("/achievements/unlock", verifyToken, validateAchievement, unlockAchievement);
+
+// Energy system
+router.get("/energy", verifyToken, getEnergy);
+router.post("/energy/use", verifyToken, useEnergy);
 
 export default router;

@@ -35,6 +35,11 @@ const GameSchema = new mongoose.Schema({
     doubleCoin: { type: Number, default: 3 },
   },
 
+  // Energy System
+  currentEnergy: { type: Number, default: 5, min: 0, max: 5 },
+  maxEnergy: { type: Number, default: 5 },
+  lastEnergyUpdate: { type: Date, default: Date.now },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
