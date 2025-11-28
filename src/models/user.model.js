@@ -35,8 +35,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // Indexes
-userSchema.index({ email: 1 });
-userSchema.index({ phone: 1 });
+// Note: email and phone already have unique: true, which creates indexes automatically
 userSchema.index({ role: 1 });
 
 export default mongoose.model("User", userSchema);

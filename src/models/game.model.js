@@ -45,7 +45,7 @@ GameSchema.pre("save", function (next) {
 });
 
 // Indexes
-GameSchema.index({ user: 1 });
+// Note: user already has unique: true, which creates an index automatically
 GameSchema.index({ coins: -1 }); // For leaderboard
 GameSchema.index({ mealsRescued: -1 }); // For environmental impact stats
 
