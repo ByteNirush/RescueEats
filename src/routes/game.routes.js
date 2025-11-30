@@ -3,6 +3,8 @@ import {
   initGame,
   updateScore,
   dailyReward,
+  getDailyRewardStatus,
+  getDailyRewardHistory,
   getLeaderboard,
   buyPowerup,
   unlockAchievement,
@@ -22,6 +24,8 @@ router.post("/init", verifyToken, initGame);
 router.post("/update-score", verifyToken, updateScore);
 
 // Daily login reward
+router.get("/daily-reward/status", verifyToken, getDailyRewardStatus);
+router.get("/daily-reward/history", verifyToken, getDailyRewardHistory);
 router.post("/daily-reward", verifyToken, dailyReward);
 
 // Leaderboard
