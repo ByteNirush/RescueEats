@@ -20,7 +20,16 @@ const GameSchema = new mongoose.Schema({
   level: { type: Number, default: 1 },
 
   dailyStreak: { type: Number, default: 0 },
-  lastLogin: { type: String, default: "" },
+  lastLogin: { type: String, default: "" }, // Deprecated, kept for backward compatibility
+  lastLoginDate: { type: Date, default: null },
+
+  // Login History for 7-day reward tracking
+  loginHistory: [{
+    date: { type: Date, required: true },
+    day: { type: Number, required: true, min: 1, max: 7 }, // 1-7
+    claimed: { type: Boolean, default: false },
+    reward: { type: Number, default: 0 }
+  }],
 
   // Meals Rescued Counter
   mealsRescued: { type: Number, default: 0 },

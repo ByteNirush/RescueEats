@@ -64,34 +64,222 @@ export const dailyReward = async (req, res) => {
 
     if (!game) game = await Game.create({ user: userId });
 
-    const today = new Date().toDateString();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset to midnight for accurate comparison
 
-    if (game.lastLogin === today) {
-      return res.json({ success: false, message: "Already claimed" });
+    // Check if already claimed today
+    if (game.lastLoginDate) {
+      const lastLoginDate = new Date(game.lastLoginDate);
+      lastLoginDate.setHours(0, 0, 0, 0);
+
+      if (lastLoginDate.getTime() === today.getTime()) {
+        return res.json({
+          success: false,
+          message: "Already claimed today",
+          canClaimToday: false,
+          nextClaimDate: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+        });
+      }
     }
 
-    // Check if user logged in yesterday to maintain streak
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const wasYesterday = game.lastLogin === yesterday.toDateString();
+    // Calculate streak
+    let newStreak = 1;
+    if (game.lastLoginDate) {
+      const lastLoginDate = new Date(game.lastLoginDate);
+      lastLoginDate.setHours(0, 0, 0, 0);
 
-    // Reward scaling: base 5 coins, +1 for streak every 3 days (example)
-    const baseReward = 5;
-    const streakBonus = Math.floor(game.dailyStreak / 3);
-    const reward = baseReward + streakBonus;
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
 
-    game.dailyStreak = wasYesterday ? game.dailyStreak + 1 : 1;
-    game.lastLogin = today;
-    game.coins += reward;
+      const wasYesterday = lastLoginDate.getTime() === yesterday.getTime();
+
+      if (wasYesterday) {
+        // Continue streak
+        newStreak = game.dailyStreak + 1;
+      } else {
+        // Streak broken, reset to 1
+        newStreak = 1;
+      }
+    }
+
+    // Calculate current day (1-7 cycle)
+    const currentDay = ((newStreak - 1) % 7) + 1;
+
+    // Reward schedule based on day
+    const rewardSchedule = [
+      { day: 1, coins: 50, xp: 10 },
+      { day: 2, coins: 75, xp: 15 },
+      { day: 3, coins: 100, xp: 20 },
+      { day: 4, coins: 150, xp: 25 },
+      { day: 5, coins: 200, xp: 30 },
+      { day: 6, coins: 300, xp: 40 },
+      { day: 7, coins: 500, xp: 50 }
+    ];
+
+    const todayReward = rewardSchedule[currentDay - 1];
+
+    // Update game state
+    game.dailyStreak = newStreak;
+    game.lastLogin = today.toDateString(); // Keep for backward compatibility
+    game.lastLoginDate = today;
+    game.coins += todayReward.coins;
+    game.xp += todayReward.xp;
+    game.level = Math.floor(game.xp / 100) + 1;
+
+    // Update login history (keep last 7 entries)
+    game.loginHistory.push({
+      date: today,
+      day: currentDay,
+      claimed: true,
+      reward: todayReward.coins
+    });
+
+    // Keep only last 7 entries
+    if (game.loginHistory.length > 7) {
+      game.loginHistory = game.loginHistory.slice(-7);
+    }
 
     await game.save();
 
-    res.json({ success: true, reward, game });
+    res.json({
+      success: true,
+      message: "Daily reward claimed!",
+      reward: {
+        day: currentDay,
+        coins: todayReward.coins,
+        xp: todayReward.xp
+      },
+      newStreak: newStreak,
+      game: {
+        coins: game.coins,
+        xp: game.xp,
+        level: game.level,
+        dailyStreak: game.dailyStreak,
+        lastLoginDate: game.lastLoginDate
+      }
+    });
   } catch (err) {
     console.error("dailyReward:", err);
     res.status(500).json({ message: err.message });
   }
 };
+
+/**
+ * Get Daily Reward Status (without claiming)
+ * GET /api/game/daily-reward/status
+ */
+export const getDailyRewardStatus = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    let game = await Game.findOne({ user: userId });
+
+    if (!game) game = await Game.create({ user: userId });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check if can claim today
+    let canClaimToday = true;
+    if (game.lastLoginDate) {
+      const lastLoginDate = new Date(game.lastLoginDate);
+      lastLoginDate.setHours(0, 0, 0, 0);
+      canClaimToday = lastLoginDate.getTime() !== today.getTime();
+    }
+
+    // Calculate current streak
+    let currentStreak = game.dailyStreak || 0;
+    if (game.lastLoginDate && canClaimToday) {
+      const lastLoginDate = new Date(game.lastLoginDate);
+      lastLoginDate.setHours(0, 0, 0, 0);
+
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const wasYesterday = lastLoginDate.getTime() === yesterday.getTime();
+
+      if (!wasYesterday && currentStreak > 0) {
+        // Streak would be broken
+        currentStreak = 0;
+      }
+    }
+
+    // Calculate current day (1-7)
+    const nextStreak = canClaimToday ? currentStreak + 1 : currentStreak;
+    const currentDay = ((nextStreak - 1) % 7) + 1;
+
+    // Reward schedule
+    const rewardSchedule = [
+      { day: 1, coins: 50, xp: 10 },
+      { day: 2, coins: 75, xp: 15 },
+      { day: 3, coins: 100, xp: 20 },
+      { day: 4, coins: 150, xp: 25 },
+      { day: 5, coins: 200, xp: 30 },
+      { day: 6, coins: 300, xp: 40 },
+      { day: 7, coins: 500, xp: 50 }
+    ];
+
+    // Build rewards array with claim status
+    const rewards = rewardSchedule.map((reward, index) => {
+      const dayNumber = index + 1;
+      let claimed = false;
+
+      if (canClaimToday) {
+        claimed = dayNumber < currentDay;
+      } else {
+        claimed = dayNumber <= currentDay;
+      }
+
+      return {
+        day: dayNumber,
+        coins: reward.coins,
+        xp: reward.xp,
+        claimed: claimed,
+        isCurrentDay: dayNumber === currentDay && canClaimToday,
+        isLocked: dayNumber > currentDay
+      };
+    });
+
+    res.json({
+      success: true,
+      canClaimToday,
+      currentStreak: currentStreak,
+      currentDay: currentDay,
+      nextReward: rewardSchedule[currentDay - 1],
+      rewards: rewards,
+      lastClaimDate: game.lastLoginDate
+    });
+  } catch (err) {
+    console.error("getDailyRewardStatus:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/**
+ * Get Daily Reward History (last 7 days)
+ * GET /api/game/daily-reward/history
+ */
+export const getDailyRewardHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const game = await Game.findOne({ user: userId });
+
+    if (!game) {
+      return res.json({
+        success: true,
+        history: []
+      });
+    }
+
+    res.json({
+      success: true,
+      history: game.loginHistory || []
+    });
+  } catch (err) {
+    console.error("getDailyRewardHistory:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
 
 export const getLeaderboard = async (req, res) => {
   try {
