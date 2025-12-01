@@ -10,13 +10,14 @@ import {
   getCanceledOrders,
   applyCoins,
   removeCoins,
-  cancelOrder
+  cancelOrder,
+  rateOrder,
 } from "../controllers/order.controller.js";
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
 import {
   validateOrder,
   validateCancelOrder,
-  validateApplyCoins
+  validateApplyCoins,
 } from "../middlewares/validators.js";
 import { orderLimiter } from "../middlewares/rateLimiter.js";
 
@@ -26,7 +27,14 @@ const router = express.Router();
 router.get("/canceled", getCanceledOrders);
 
 // Create order (with validation and rate limiting)
-router.post("/", verifyToken, authorizeRoles("user"), orderLimiter, validateOrder, createOrder);
+router.post(
+  "/",
+  verifyToken,
+  authorizeRoles("user"),
+  orderLimiter,
+  validateOrder,
+  createOrder
+);
 
 // Get orders (role-based)
 router.get("/", verifyToken, getOrders);
@@ -35,19 +43,44 @@ router.get("/", verifyToken, getOrders);
 router.get("/:id", verifyToken, getOrderById);
 
 // Apply coins to order
-router.post("/:id/apply-coins", verifyToken, authorizeRoles("user"), validateApplyCoins, applyCoins);
+router.post(
+  "/:id/apply-coins",
+  verifyToken,
+  authorizeRoles("user"),
+  validateApplyCoins,
+  applyCoins
+);
 
 // Remove coins from order
-router.post("/:id/remove-coins", verifyToken, authorizeRoles("user"), removeCoins);
+router.post(
+  "/:id/remove-coins",
+  verifyToken,
+  authorizeRoles("user"),
+  removeCoins
+);
 
 // Update status (restaurant/admin/delivery)
 router.patch("/:id/status", verifyToken, updateOrderStatus);
 
 // Cancel order and add to marketplace (restaurant only)
-router.patch("/:orderId/cancel", verifyToken, authorizeRoles("restaurant"), validateCancelOrder, cancelOrder);
+router.patch(
+  "/:orderId/cancel",
+  verifyToken,
+  authorizeRoles("restaurant"),
+  validateCancelOrder,
+  cancelOrder
+);
 
 // Assign delivery (admin/restaurant)
-router.post("/:id/assign", verifyToken, authorizeRoles("admin", "restaurant"), assignDeliveryPerson);
+router.post(
+  "/:id/assign",
+  verifyToken,
+  authorizeRoles("admin", "restaurant"),
+  assignDeliveryPerson
+);
+
+// Rate order (user only)
+router.post("/:id/rate", verifyToken, authorizeRoles("user"), rateOrder);
 
 // Delete (admin)
 router.delete("/:id", verifyToken, authorizeRoles("admin"), deleteOrder);

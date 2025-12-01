@@ -93,6 +93,11 @@ const OrderSchema = new mongoose.Schema(
     notes: { type: String, default: "" },
     estimatedTimeMins: { type: Number, default: null },
 
+    // Rating & Review
+    rating: { type: Number, min: 1, max: 5, default: null },
+    review: { type: String, default: "" },
+    ratedAt: { type: Date, default: null },
+
     // soft delete
     isDeleted: { type: Boolean, default: false },
   },
