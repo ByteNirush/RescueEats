@@ -250,6 +250,7 @@ export const updateOrderStatus = async (req, res) => {
       "accepted",
       "preparing",
       "ready",
+      "handed_over",
       "out_for_delivery",
       "delivered",
       "cancelled",
@@ -277,7 +278,14 @@ export const updateOrderStatus = async (req, res) => {
       if (order.restaurant.toString() !== restaurant._id.toString()) {
         return res.status(403).json({ message: "Access denied" });
       }
-      const allowed = ["accepted", "preparing", "ready", "cancelled"];
+      const allowed = [
+        "accepted",
+        "preparing",
+        "ready",
+        "handed_over",
+        "out_for_delivery",
+        "cancelled",
+      ];
       if (!allowed.includes(status))
         return res
           .status(403)
