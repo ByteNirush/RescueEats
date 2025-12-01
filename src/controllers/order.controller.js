@@ -81,18 +81,17 @@ export const createOrder = async (req, res) => {
         });
       }
 
-      // Validate minimum coins requirement
-      if (coinsUsed < 100 && coinsUsed > 0) {
+      // Validate exactly 100 coins for Rs. 10 off - no more, no less
+      if (coinsUsed !== 100) {
         return res.status(400).json({
-          message: "Minimum 100 coins required for redemption",
+          message: "Exactly 100 coins required for redemption",
         });
       }
 
-      // Validate coin discount calculation (100 coins = Rs. 10)
-      const expectedDiscount = Math.floor(coinsUsed / 100) * 10;
-      if (Math.abs(coinDiscount - expectedDiscount) > 0.1) {
+      // Validate coin discount is exactly Rs. 10
+      if (Math.abs(coinDiscount - 10) > 0.01) {
         return res.status(400).json({
-          message: "Invalid coin discount calculation",
+          message: "Invalid coin discount. 100 coins = Rs. 10 only",
         });
       }
     }
