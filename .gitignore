@@ -34,3 +34,9 @@ npm-debug.log*
 # OS generated files
 Thumbs.db
 ehthumbs.db
+
+drop_duplicate_indexes.js
+reset_database.js
+test_backend.sh
+test_daily_reward.js
+test_order_flow.sh

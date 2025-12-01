@@ -21,11 +21,15 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-// CORS
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
-  credentials: true
-}));
+// CORS - Allow all origins for development
+app.use(
+  cors({
+    origin: true, // Allow all origins (for mobile and web)
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+  })
+);
 
 app.use(express.json());
 
@@ -69,7 +73,7 @@ app.use((err, req, res, next) => {
   console.error("Error:", err);
   res.status(err.status || 500).json({
     message: err.message || "Internal server error",
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack })
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 });
 
