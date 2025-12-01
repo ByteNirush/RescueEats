@@ -473,57 +473,131 @@ export const paymentWebhook = async (req, res) => {
 export const cancelOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { discountPercent, cancelReason } = req.body;
+    const { discountPercent = 0, cancelReason } = req.body;
     const userId = req.user.id;
+    const role = req.user.role;
 
-    // Find user's restaurant
-    const user = await User.findById(userId);
-    if (!user || !user.restaurantId) {
-      return res
-        .status(403)
-        .json({ message: "Not authorized as restaurant owner" });
-    }
+    // Allow both restaurants and customers to cancel orders
+    let order;
 
-    // Find order
-    const order = await Order.findOne({
-      _id: orderId,
-      restaurant: user.restaurantId,
-      status: { $in: ["pending", "accepted"] },
-    });
+    if (role === "restaurant") {
+      // Find restaurant owned by this user
+      const restaurant = await Restaurant.findOne({ owner: userId });
+      if (!restaurant) {
+        return res
+          .status(403)
+          .json({ message: "Not authorized as restaurant owner" });
+      }
 
-    if (!order) {
-      return res
-        .status(404)
-        .json({ message: "Order not found or cannot be canceled" });
-    }
-
-    // Calculate discounted price
-    const originalPrice = order.total;
-    const discountAmount = (originalPrice * discountPercent) / 100;
-    const discountedPrice = originalPrice - discountAmount;
-
-    // Update order
-    order.isCanceled = true;
-    order.status = "cancelled";
-    order.originalPrice = originalPrice;
-    order.discountPercent = discountPercent;
-    order.discountedPrice = discountedPrice;
-    order.canceledAt = new Date();
-    order.cancelReason = cancelReason || "Restaurant canceled";
-
-    await order.save();
-
-    // Emit socket event for real-time updates
-    if (req.io) {
-      req.io.emit("canceled_order:new", {
-        orderId: order._id,
-        restaurantId: user.restaurantId,
-        discountPercent: order.discountPercent,
-        discountedPrice: order.discountedPrice,
+      // Find order - restaurants can cancel orders in preparing/accepted state
+      order = await Order.findOne({
+        _id: orderId,
+        restaurant: restaurant._id,
+        status: { $in: ["accepted", "preparing"] },
       });
-    }
 
-    res.json({ success: true, order });
+      if (!order) {
+        return res.status(404).json({
+          message: "Order not found or cannot be canceled at this stage",
+        });
+      }
+
+      // When restaurant cancels after cooking started, auto-add to marketplace
+      // This is the key integration point!
+      const CanceledOrderMarketplace = mongoose.model(
+        "CanceledOrderMarketplace"
+      );
+
+      // Calculate discounted price
+      const originalPrice = order.total;
+      const actualDiscount = Math.max(0, Math.min(100, discountPercent));
+      const discountAmount = (originalPrice * actualDiscount) / 100;
+      const discountedPrice = +(originalPrice - discountAmount).toFixed(2);
+
+      // Update order
+      order.isCanceled = true;
+      order.status = "cancelled";
+      order.originalPrice = originalPrice;
+      order.discountPercent = actualDiscount;
+      order.discountedPrice = discountedPrice;
+      order.canceledAt = new Date();
+      order.cancelReason =
+        cancelReason || "Restaurant canceled - food available at discount";
+
+      await order.save();
+
+      // Automatically create marketplace entry
+      const marketplaceItem = await CanceledOrderMarketplace.create({
+        order: order._id,
+        restaurant: restaurant._id,
+        originalCustomer: order.customer,
+        items: order.items,
+        originalPrice,
+        discountPercent: actualDiscount,
+        discountedPrice,
+        canceledAt: new Date(),
+        cancelReason: order.cancelReason,
+        availability: "available",
+      });
+
+      // Emit socket event for real-time updates
+      if (req.io) {
+        req.io.emit("marketplace:new_item", {
+          itemId: marketplaceItem._id,
+          restaurantId: restaurant._id,
+          discountPercent: actualDiscount,
+          discountedPrice,
+        });
+
+        req.io.to(`customer_${order.customer}`).emit("order:cancelled", {
+          orderId: order._id,
+          reason: order.cancelReason,
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Order canceled and added to marketplace",
+        order,
+        marketplaceItem,
+      });
+    } else if (role === "user") {
+      // Customer canceling their own order
+      order = await Order.findOne({
+        _id: orderId,
+        customer: userId,
+        status: { $in: ["pending", "accepted"] },
+      });
+
+      if (!order) {
+        return res.status(404).json({
+          message: "Order not found or cannot be canceled at this stage",
+        });
+      }
+
+      order.status = "cancelled";
+      order.isCanceled = true;
+      order.canceledAt = new Date();
+      order.cancelReason = cancelReason || "Customer canceled";
+
+      await order.save();
+
+      // Emit socket event
+      if (req.io) {
+        req.io.to(`restaurant_${order.restaurant}`).emit("order:cancelled", {
+          orderId: order._id,
+          reason: order.cancelReason,
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Order canceled successfully",
+        order,
+      });
+    } else {
+      return res.status(403).json({ message: "Access denied" });
+    }
   } catch (err) {
     console.error("cancelOrder:", err);
     res.status(500).json({ message: err.message });
