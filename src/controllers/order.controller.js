@@ -269,8 +269,14 @@ export const updateOrderStatus = async (req, res) => {
     const userId = req.user.id;
 
     if (role === "restaurant") {
-      if (order.restaurant.toString() !== userId)
+      // Find the restaurant owned by this user
+      const restaurant = await Restaurant.findOne({ owner: userId });
+      if (!restaurant) {
+        return res.status(403).json({ message: "Restaurant not found" });
+      }
+      if (order.restaurant.toString() !== restaurant._id.toString()) {
         return res.status(403).json({ message: "Access denied" });
+      }
       const allowed = ["accepted", "preparing", "ready", "cancelled"];
       if (!allowed.includes(status))
         return res
