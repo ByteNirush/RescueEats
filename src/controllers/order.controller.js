@@ -163,7 +163,10 @@ export const getOrders = async (req, res) => {
       const restaurant = await Restaurant.findOne({ owner: userId });
       if (restaurant) {
         filter.restaurant = restaurant._id;
-        console.log("[getOrders] Filtering orders for restaurant:", restaurant._id);
+        console.log(
+          "[getOrders] Filtering orders for restaurant:",
+          restaurant._id
+        );
       } else {
         console.log("[getOrders] No restaurant found for owner:", userId);
         return res.json({
@@ -189,7 +192,9 @@ export const getOrders = async (req, res) => {
       Order.countDocuments(filter),
     ]);
 
-    console.log(`[getOrders] Found ${orders.length} orders for user ${userId} (role: ${role})`);
+    console.log(
+      `[getOrders] Found ${orders.length} orders for user ${userId} (role: ${role})`
+    );
 
     res.json({
       orders,
