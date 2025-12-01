@@ -278,6 +278,8 @@ export const updateOrderStatus = async (req, res) => {
       if (order.restaurant.toString() !== restaurant._id.toString()) {
         return res.status(403).json({ message: "Access denied" });
       }
+      
+      // Base allowed statuses for restaurants
       const allowed = [
         "accepted",
         "preparing",
@@ -286,10 +288,16 @@ export const updateOrderStatus = async (req, res) => {
         "out_for_delivery",
         "cancelled",
       ];
-      if (!allowed.includes(status))
+      
+      // For pickup orders, restaurants can also mark as delivered
+      // since there's no delivery person involved
+      if (order.orderType === "pickup" && status === "delivered") {
+        // Allow restaurants to complete pickup orders
+      } else if (!allowed.includes(status)) {
         return res
           .status(403)
           .json({ message: "Restaurant cannot set that status" });
+      }
     } else if (role === "user") {
       if (status === "cancelled") {
         if (order.customer.toString() !== userId)
