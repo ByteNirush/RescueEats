@@ -278,7 +278,7 @@ export const updateOrderStatus = async (req, res) => {
       if (order.restaurant.toString() !== restaurant._id.toString()) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       // Base allowed statuses for restaurants
       const allowed = [
         "accepted",
@@ -288,7 +288,7 @@ export const updateOrderStatus = async (req, res) => {
         "out_for_delivery",
         "cancelled",
       ];
-      
+
       // For pickup orders, restaurants can also mark as delivered
       // since there's no delivery person involved
       if (order.orderType === "pickup" && status === "delivered") {
