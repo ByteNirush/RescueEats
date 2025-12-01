@@ -94,9 +94,16 @@ export const dailyReward = async (req, res) => {
         console.log(`[DailyReward] Already claimed today for user ${userId}`);
         return res.json({
           success: false,
-          message: "Already claimed today",
+          message: "Already claimed today!",
           canClaimToday: false,
           nextClaimDate: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+          game: {
+            coins: game.coins,
+            xp: game.xp,
+            level: game.level,
+            dailyStreak: game.dailyStreak,
+            lastLoginDate: game.lastLoginDate,
+          },
         });
       }
     }
@@ -204,12 +211,16 @@ export const getDailyRewardStatus = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Check if can claim today
+    // Check if can claim today - if lastLoginDate is today, already claimed
     let canClaimToday = true;
     if (game.lastLoginDate) {
       const lastLoginDate = new Date(game.lastLoginDate);
       lastLoginDate.setHours(0, 0, 0, 0);
+      // If last login was today, cannot claim again
       canClaimToday = lastLoginDate.getTime() !== today.getTime();
+      console.log(
+        `[getDailyRewardStatus] User ${userId}: lastLogin=${lastLoginDate.toISOString()}, today=${today.toISOString()}, canClaim=${canClaimToday}`
+      );
     }
 
     // Calculate current streak
