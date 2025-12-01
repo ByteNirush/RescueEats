@@ -666,3 +666,54 @@ export const removeCoins = async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 };
+
+// Rate and review order
+export const rateOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating, review } = req.body;
+    const userId = req.user.id;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res
+        .status(400)
+        .json({ message: "Rating must be between 1 and 5" });
+    }
+
+    const order = await Order.findById(id);
+    if (!order || order.isDeleted) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Only customer can rate their own order
+    if (order.customer.toString() !== userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    // Only delivered orders can be rated
+    if (order.status !== "delivered") {
+      return res
+        .status(400)
+        .json({ message: "Only delivered orders can be rated" });
+    }
+
+    // Check if already rated
+    if (order.rating) {
+      return res.status(400).json({ message: "Order already rated" });
+    }
+
+    order.rating = rating;
+    order.review = review || "";
+    order.ratedAt = new Date();
+    await order.save();
+
+    res.json({
+      success: true,
+      message: "Rating submitted successfully",
+      order,
+    });
+  } catch (err) {
+    console.error("rateOrder:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
