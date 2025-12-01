@@ -11,7 +11,18 @@ export const initGame = async (req, res) => {
       game = await Game.create({ user: userId });
     }
 
-    res.json({ success: true, game });
+    // Return essential game data in a consistent format
+    res.json({
+      success: true,
+      coins: game.coins,
+      xp: game.xp,
+      level: game.level,
+      dailyStreak: game.dailyStreak,
+      lastLoginDate: game.lastLoginDate,
+      currentEnergy: game.currentEnergy,
+      maxEnergy: game.maxEnergy,
+      game: game, // Full game object for backward compatibility
+    });
   } catch (err) {
     console.error("initGame:", err);
     res.status(500).json({ message: err.message });
@@ -60,12 +71,19 @@ export const updateScore = async (req, res) => {
 export const dailyReward = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log(`[DailyReward] User ${userId} attempting to claim reward`);
+
     let game = await Game.findOne({ user: userId });
 
-    if (!game) game = await Game.create({ user: userId });
+    if (!game) {
+      console.log(`[DailyReward] Creating new game profile for user ${userId}`);
+      game = await Game.create({ user: userId });
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Reset to midnight for accurate comparison
+    console.log(`[DailyReward] Today: ${today.toISOString()}`);
+    console.log(`[DailyReward] Last login: ${game.lastLoginDate}`);
 
     // Check if already claimed today
     if (game.lastLoginDate) {
@@ -73,11 +91,12 @@ export const dailyReward = async (req, res) => {
       lastLoginDate.setHours(0, 0, 0, 0);
 
       if (lastLoginDate.getTime() === today.getTime()) {
+        console.log(`[DailyReward] Already claimed today for user ${userId}`);
         return res.json({
           success: false,
           message: "Already claimed today",
           canClaimToday: false,
-          nextClaimDate: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+          nextClaimDate: new Date(today.getTime() + 24 * 60 * 60 * 1000),
         });
       }
     }
@@ -113,7 +132,7 @@ export const dailyReward = async (req, res) => {
       { day: 4, coins: 150, xp: 25 },
       { day: 5, coins: 200, xp: 30 },
       { day: 6, coins: 300, xp: 40 },
-      { day: 7, coins: 500, xp: 50 }
+      { day: 7, coins: 500, xp: 50 },
     ];
 
     const todayReward = rewardSchedule[currentDay - 1];
@@ -131,7 +150,7 @@ export const dailyReward = async (req, res) => {
       date: today,
       day: currentDay,
       claimed: true,
-      reward: todayReward.coins
+      reward: todayReward.coins,
     });
 
     // Keep only last 7 entries
@@ -141,13 +160,17 @@ export const dailyReward = async (req, res) => {
 
     await game.save();
 
+    console.log(
+      `[DailyReward] Successfully claimed! Day ${currentDay}, Streak ${newStreak}, Reward: ${todayReward.coins} coins`
+    );
+
     res.json({
       success: true,
       message: "Daily reward claimed!",
       reward: {
         day: currentDay,
         coins: todayReward.coins,
-        xp: todayReward.xp
+        xp: todayReward.xp,
       },
       newStreak: newStreak,
       game: {
@@ -155,12 +178,15 @@ export const dailyReward = async (req, res) => {
         xp: game.xp,
         level: game.level,
         dailyStreak: game.dailyStreak,
-        lastLoginDate: game.lastLoginDate
-      }
+        lastLoginDate: game.lastLoginDate,
+      },
     });
   } catch (err) {
-    console.error("dailyReward:", err);
-    res.status(500).json({ message: err.message });
+    console.error("[DailyReward] Error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
@@ -215,7 +241,7 @@ export const getDailyRewardStatus = async (req, res) => {
       { day: 4, coins: 150, xp: 25 },
       { day: 5, coins: 200, xp: 30 },
       { day: 6, coins: 300, xp: 40 },
-      { day: 7, coins: 500, xp: 50 }
+      { day: 7, coins: 500, xp: 50 },
     ];
 
     // Build rewards array with claim status
@@ -235,7 +261,7 @@ export const getDailyRewardStatus = async (req, res) => {
         xp: reward.xp,
         claimed: claimed,
         isCurrentDay: dayNumber === currentDay && canClaimToday,
-        isLocked: dayNumber > currentDay
+        isLocked: dayNumber > currentDay,
       };
     });
 
@@ -246,7 +272,7 @@ export const getDailyRewardStatus = async (req, res) => {
       currentDay: currentDay,
       nextReward: rewardSchedule[currentDay - 1],
       rewards: rewards,
-      lastClaimDate: game.lastLoginDate
+      lastClaimDate: game.lastLoginDate,
     });
   } catch (err) {
     console.error("getDailyRewardStatus:", err);
@@ -266,20 +292,19 @@ export const getDailyRewardHistory = async (req, res) => {
     if (!game) {
       return res.json({
         success: true,
-        history: []
+        history: [],
       });
     }
 
     res.json({
       success: true,
-      history: game.loginHistory || []
+      history: game.loginHistory || [],
     });
   } catch (err) {
     console.error("getDailyRewardHistory:", err);
     res.status(500).json({ message: err.message });
   }
 };
-
 
 export const getLeaderboard = async (req, res) => {
   try {
@@ -340,7 +365,7 @@ export const unlockAchievement = async (req, res) => {
     if (!game) game = await Game.create({ user: userId });
 
     // Check if already unlocked
-    const existing = game.achievements.find(a => a.id === achievementId);
+    const existing = game.achievements.find((a) => a.id === achievementId);
     if (existing) {
       return res.json({ success: false, message: "Already unlocked" });
     }
@@ -349,7 +374,7 @@ export const unlockAchievement = async (req, res) => {
     game.achievements.push({
       id: achievementId,
       unlockedAt: new Date(),
-      reward
+      reward,
     });
 
     // Add reward coins
@@ -359,13 +384,16 @@ export const unlockAchievement = async (req, res) => {
 
     await game.save();
 
-    res.json({ success: true, game, achievement: { id: achievementId, reward } });
+    res.json({
+      success: true,
+      game,
+      achievement: { id: achievementId, reward },
+    });
   } catch (err) {
     console.error("unlockAchievement:", err);
     res.status(500).json({ message: err.message });
   }
 };
-
 
 /**
  * Get User Achievements
@@ -422,9 +450,7 @@ export const getEnergy = async (req, res) => {
       (now - new Date(game.lastEnergyUpdate)) / (1000 * 60)
     );
     const minutesUntilNext =
-      game.currentEnergy < game.maxEnergy
-        ? 30 - minutesSinceLastUpdate
-        : null;
+      game.currentEnergy < game.maxEnergy ? 30 - minutesSinceLastUpdate : null;
 
     res.json({
       success: true,
