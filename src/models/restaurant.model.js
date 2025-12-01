@@ -40,6 +40,10 @@ const RestaurantSchema = new mongoose.Schema(
 
     isOpen: { type: Boolean, default: true },
 
+    // Delivery and Pickup Support
+    supportsDelivery: { type: Boolean, default: true },
+    supportsPickup: { type: Boolean, default: true },
+
     menu: { type: [MenuItemSchema], default: [] },
 
     isDeleted: { type: Boolean, default: false },

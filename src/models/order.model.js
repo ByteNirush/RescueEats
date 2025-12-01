@@ -1,25 +1,56 @@
 import mongoose from "mongoose";
 
 const OrderItemSchema = new mongoose.Schema({
-  productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: false },
+  productId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Product",
+    required: false,
+  },
   name: { type: String, required: true },
   qty: { type: Number, required: true, min: 1 },
   price: { type: Number, required: true, min: 0 },
   image: { type: String, default: "" }, // Added image field
-  notes: { type: String, default: "" }
+  notes: { type: String, default: "" },
 });
 
 const OrderSchema = new mongoose.Schema(
   {
-    customer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    restaurant: { type: mongoose.Schema.Types.ObjectId, ref: "Restaurant", required: true },
+    customer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    restaurant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Restaurant",
+      required: true,
+    },
     items: { type: [OrderItemSchema], required: true },
     status: {
       type: String,
-      enum: ["pending", "accepted", "preparing", "ready", "out_for_delivery", "delivered", "cancelled"],
-      default: "pending"
+      enum: [
+        "pending",
+        "accepted",
+        "preparing",
+        "ready",
+        "out_for_delivery",
+        "delivered",
+        "cancelled",
+      ],
+      default: "pending",
     },
-    deliveryPerson: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    deliveryPerson: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    // Order Type: delivery or pickup
+    orderType: {
+      type: String,
+      enum: ["delivery", "pickup"],
+      default: "delivery",
+    },
 
     // Pricing breakdown
     subtotal: { type: Number, required: true, min: 0 },
@@ -42,8 +73,16 @@ const OrderSchema = new mongoose.Schema(
     coinDiscount: { type: Number, default: 0, min: 0 },
 
     // Payment
-    paymentMethod: { type: String, enum: ["cod", "khalti", "esewa", "stripe"], default: "cod" },
-    paymentStatus: { type: String, enum: ["pending", "paid", "failed", "refunded"], default: "pending" },
+    paymentMethod: {
+      type: String,
+      enum: ["cod", "khalti", "esewa", "stripe"],
+      default: "cod",
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "failed", "refunded"],
+      default: "pending",
+    },
     paymentReference: { type: String, default: null },
 
     // Address & contact
@@ -54,7 +93,7 @@ const OrderSchema = new mongoose.Schema(
     estimatedTimeMins: { type: Number, default: null },
 
     // soft delete
-    isDeleted: { type: Boolean, default: false }
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

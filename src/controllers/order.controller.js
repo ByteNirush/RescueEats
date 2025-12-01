@@ -39,7 +39,14 @@ const calculatePricing = ({
 // Create new order (Customer)
 export const createOrder = async (req, res) => {
   try {
-    const { restaurantId, items, paymentMethod, deliveryAddress, contactPhone } = req.body;
+    const {
+      restaurantId,
+      items,
+      paymentMethod,
+      deliveryAddress,
+      contactPhone,
+      orderType = "delivery",
+    } = req.body;
 
     if (!restaurantId || !items || items.length === 0)
       return res
@@ -51,6 +58,16 @@ export const createOrder = async (req, res) => {
     if (!restaurant || restaurant.isDeleted)
       return res.status(404).json({ message: "Restaurant not found" });
 
+    // 2) Validate order type is supported by restaurant
+    if (orderType === "delivery" && !restaurant.supportsDelivery)
+      return res
+        .status(400)
+        .json({ message: "Restaurant does not support delivery" });
+    if (orderType === "pickup" && !restaurant.supportsPickup)
+      return res
+        .status(400)
+        .json({ message: "Restaurant does not support pickup" });
+
     // 2) Validate Items from Restaurant Menu
     const orderItems = [];
 
@@ -61,7 +78,9 @@ export const createOrder = async (req, res) => {
 
       if (!menuItem) {
         return res.status(400).json({
-          message: `Menu item ${item.menuId || item.menuItem} does not belong to this restaurant`,
+          message: `Menu item ${
+            item.menuId || item.menuItem
+          } does not belong to this restaurant`,
         });
       }
 
@@ -73,14 +92,14 @@ export const createOrder = async (req, res) => {
         price: menuItem.price,
         image: menuItem.image, // Copy image
         qty: qty,
-        notes: item.notes || ""
+        notes: item.notes || "",
       });
     }
 
     // 3) Calculate Pricing
     const pricing = calculatePricing({
       items: orderItems,
-      deliveryCharge: 50, // Fixed delivery charge for now
+      deliveryCharge: orderType === "pickup" ? 0 : 50, // No delivery charge for pickup
       taxRate: 0.0, // No tax for now or 0.13
     });
 
@@ -89,6 +108,7 @@ export const createOrder = async (req, res) => {
       customer: req.user.id, // Fixed: use 'customer' instead of 'user'
       restaurant: restaurantId,
       items: orderItems,
+      orderType, // Add order type (delivery or pickup)
 
       // Pricing fields required by schema
       subtotal: pricing.subtotal,
@@ -114,8 +134,10 @@ export const createOrder = async (req, res) => {
     });
   } catch (err) {
     console.error("createOrder:", err);
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ message: "Validation Error", error: err.message });
+    if (err.name === "ValidationError") {
+      return res
+        .status(400)
+        .json({ message: "Validation Error", error: err.message });
     }
     res.status(500).json({ message: "Server error", error: err.message });
   }
@@ -260,24 +282,18 @@ export const updateOrderStatus = async (req, res) => {
 
     // Emit event
     if (req.io) {
-      req.io
-        .to(`order_${order._id}`)
-        .emit("order:status_updated", {
-          orderId: order._id,
-          status: order.status,
-        });
-      req.io
-        .to(`customer_${order.customer}`)
-        .emit("order:status_updated", {
-          orderId: order._id,
-          status: order.status,
-        });
-      req.io
-        .to(`restaurant_${order.restaurant}`)
-        .emit("order:status_updated", {
-          orderId: order._id,
-          status: order.status,
-        });
+      req.io.to(`order_${order._id}`).emit("order:status_updated", {
+        orderId: order._id,
+        status: order.status,
+      });
+      req.io.to(`customer_${order.customer}`).emit("order:status_updated", {
+        orderId: order._id,
+        status: order.status,
+      });
+      req.io.to(`restaurant_${order.restaurant}`).emit("order:status_updated", {
+        orderId: order._id,
+        status: order.status,
+      });
     }
 
     res.json({ message: "Order status updated", order });
@@ -330,7 +346,6 @@ export const assignDeliveryPerson = async (req, res) => {
   }
 };
 
-
 // Soft delete (admin)
 
 export const deleteOrder = async (req, res) => {
@@ -376,7 +391,7 @@ export const paymentWebhook = async (req, res) => {
 
       // Deduct coins if used (only on successful payment)
       if (order.coinsUsed > 0) {
-        const Game = mongoose.model('Game');
+        const Game = mongoose.model("Game");
         await Game.findOneAndUpdate(
           { user: order.customer },
           { $inc: { coins: -order.coinsUsed } }
@@ -385,7 +400,7 @@ export const paymentWebhook = async (req, res) => {
 
       // Increment meals rescued counter
       if (order.isCanceled) {
-        const Game = mongoose.model('Game');
+        const Game = mongoose.model("Game");
         await Game.findOneAndUpdate(
           { user: order.customer },
           { $inc: { mealsRescued: 1 } }
@@ -425,18 +440,22 @@ export const cancelOrder = async (req, res) => {
     // Find user's restaurant
     const user = await User.findById(userId);
     if (!user || !user.restaurantId) {
-      return res.status(403).json({ message: "Not authorized as restaurant owner" });
+      return res
+        .status(403)
+        .json({ message: "Not authorized as restaurant owner" });
     }
 
     // Find order
     const order = await Order.findOne({
       _id: orderId,
       restaurant: user.restaurantId,
-      status: { $in: ['pending', 'accepted'] }
+      status: { $in: ["pending", "accepted"] },
     });
 
     if (!order) {
-      return res.status(404).json({ message: "Order not found or cannot be canceled" });
+      return res
+        .status(404)
+        .json({ message: "Order not found or cannot be canceled" });
     }
 
     // Calculate discounted price
@@ -446,7 +465,7 @@ export const cancelOrder = async (req, res) => {
 
     // Update order
     order.isCanceled = true;
-    order.status = 'cancelled';
+    order.status = "cancelled";
     order.originalPrice = originalPrice;
     order.discountPercent = discountPercent;
     order.discountedPrice = discountedPrice;
@@ -457,11 +476,11 @@ export const cancelOrder = async (req, res) => {
 
     // Emit socket event for real-time updates
     if (req.io) {
-      req.io.emit('canceled_order:new', {
+      req.io.emit("canceled_order:new", {
         orderId: order._id,
         restaurantId: user.restaurantId,
         discountPercent: order.discountPercent,
-        discountedPrice: order.discountedPrice
+        discountedPrice: order.discountedPrice,
       });
     }
 
@@ -482,16 +501,16 @@ export const getCanceledOrders = async (req, res) => {
 
     const query = {
       isCanceled: true,
-      status: 'cancelled',
-      paymentStatus: 'pending' // Only show unpurchased canceled orders
+      status: "cancelled",
+      paymentStatus: "pending", // Only show unpurchased canceled orders
     };
 
     // Build filter
     if (cuisine) {
       const restaurants = await Restaurant.find({
-        cuisines: { $in: [cuisine] }
-      }).select('_id');
-      query.restaurant = { $in: restaurants.map(r => r._id) };
+        cuisines: { $in: [cuisine] },
+      }).select("_id");
+      query.restaurant = { $in: restaurants.map((r) => r._id) };
     }
 
     if (minPrice || maxPrice) {
@@ -504,13 +523,13 @@ export const getCanceledOrders = async (req, res) => {
 
     const [orders, total] = await Promise.all([
       Order.find(query)
-        .populate('restaurant', 'name image cuisines address phone')
-        .populate('items')
+        .populate("restaurant", "name image cuisines address phone")
+        .populate("items")
         .sort({ canceledAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      Order.countDocuments(query)
+      Order.countDocuments(query),
     ]);
 
     res.json({
@@ -520,8 +539,8 @@ export const getCanceledOrders = async (req, res) => {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        pages: Math.ceil(total / limit)
-      }
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (err) {
     console.error("getCanceledOrders:", err);
@@ -540,21 +559,25 @@ export const applyCoins = async (req, res) => {
     const userId = req.user.id;
 
     // Import coin calculator
-    const { calculateCoinDiscount } = await import('../utils/coinCalculator.js');
+    const { calculateCoinDiscount } = await import(
+      "../utils/coinCalculator.js"
+    );
 
     const order = await Order.findById(id);
     if (!order || order.customer.toString() !== userId) {
-      return res.status(404).json({ message: 'Order not found' });
+      return res.status(404).json({ message: "Order not found" });
     }
 
-    if (order.paymentStatus !== 'pending') {
-      return res.status(400).json({ message: 'Cannot apply coins to paid/failed orders' });
+    if (order.paymentStatus !== "pending") {
+      return res
+        .status(400)
+        .json({ message: "Cannot apply coins to paid/failed orders" });
     }
 
-    const Game = mongoose.model('Game');
+    const Game = mongoose.model("Game");
     const game = await Game.findOne({ user: userId });
     if (!game) {
-      return res.status(400).json({ message: 'No game profile found' });
+      return res.status(400).json({ message: "No game profile found" });
     }
 
     // Calculate coin discount
@@ -569,7 +592,7 @@ export const applyCoins = async (req, res) => {
     res.json({
       success: true,
       ...result,
-      remainingCoins: game.coins // Don't subtract yet
+      remainingCoins: game.coins, // Don't subtract yet
     });
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -587,11 +610,13 @@ export const removeCoins = async (req, res) => {
 
     const order = await Order.findById(id);
     if (!order || order.customer.toString() !== userId) {
-      return res.status(404).json({ message: 'Order not found' });
+      return res.status(404).json({ message: "Order not found" });
     }
 
-    if (order.paymentStatus !== 'pending') {
-      return res.status(400).json({ message: 'Cannot modify paid/failed orders' });
+    if (order.paymentStatus !== "pending") {
+      return res
+        .status(400)
+        .json({ message: "Cannot modify paid/failed orders" });
     }
 
     // Restore original total
@@ -604,10 +629,9 @@ export const removeCoins = async (req, res) => {
 
     res.json({
       success: true,
-      order
+      order,
     });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
-
