@@ -46,6 +46,8 @@ export const createOrder = async (req, res) => {
       deliveryAddress,
       contactPhone,
       orderType = "delivery",
+      coinsUsed = 0,
+      coinDiscount = 0,
     } = req.body;
 
     if (!restaurantId || !items || items.length === 0)
@@ -67,6 +69,33 @@ export const createOrder = async (req, res) => {
       return res
         .status(400)
         .json({ message: "Restaurant does not support pickup" });
+
+    // 2.5) Validate coin usage if applicable
+    if (coinsUsed > 0 || coinDiscount > 0) {
+      const Game = mongoose.model("Game");
+      const game = await Game.findOne({ user: req.user.id });
+
+      if (!game || game.coins < coinsUsed) {
+        return res.status(400).json({
+          message: "Insufficient coins. Please refresh and try again.",
+        });
+      }
+
+      // Validate minimum coins requirement
+      if (coinsUsed < 100 && coinsUsed > 0) {
+        return res.status(400).json({
+          message: "Minimum 100 coins required for redemption",
+        });
+      }
+
+      // Validate coin discount calculation (100 coins = Rs. 10)
+      const expectedDiscount = Math.floor(coinsUsed / 100) * 10;
+      if (Math.abs(coinDiscount - expectedDiscount) > 0.1) {
+        return res.status(400).json({
+          message: "Invalid coin discount calculation",
+        });
+      }
+    }
 
     // 2) Validate Items from Restaurant Menu
     const orderItems = [];
@@ -101,6 +130,7 @@ export const createOrder = async (req, res) => {
       items: orderItems,
       deliveryCharge: orderType === "pickup" ? 0 : 50, // No delivery charge for pickup
       taxRate: 0.0, // No tax for now or 0.13
+      discount: coinDiscount, // Include coin discount in pricing
     });
 
     // 4) Create Order
@@ -117,6 +147,10 @@ export const createOrder = async (req, res) => {
       serviceCharge: pricing.serviceCharge,
       discount: pricing.discount,
       total: pricing.total,
+
+      // Coin redemption fields
+      coinsUsed: coinsUsed,
+      coinDiscount: coinDiscount,
 
       paymentMethod,
       deliveryAddress,
