@@ -489,16 +489,18 @@ export const cancelOrder = async (req, res) => {
           .json({ message: "Not authorized as restaurant owner" });
       }
 
-      // Find order - restaurants can cancel orders in preparing/accepted state
+      // Find order - restaurants can cancel orders in pending/accepted/preparing state
+      // but NOT ready or later stages
       order = await Order.findOne({
         _id: orderId,
         restaurant: restaurant._id,
-        status: { $in: ["accepted", "preparing"] },
+        status: { $in: ["pending", "accepted", "preparing"] },
       });
 
       if (!order) {
         return res.status(404).json({
-          message: "Order not found or cannot be canceled at this stage",
+          message:
+            "Order not found or cannot be canceled at this stage (orders in ready or later stages cannot be canceled)",
         });
       }
 
