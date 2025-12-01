@@ -11,6 +11,7 @@ import orderRoutes from "./routes/order.routes.js";
 import "./config/passport.js"; // import passport config
 import restaurantRoutes from "./routes/restaurant.routes.js";
 import gameRoutes from "./routes/game.routes.js";
+import marketplaceRoutes from "./routes/marketplace.routes.js";
 import { apiLimiter, authLimiter } from "./middlewares/rateLimiter.js";
 
 dotenv.config();
@@ -57,6 +58,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/game", gameRoutes);
+app.use("/api/marketplace", marketplaceRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
