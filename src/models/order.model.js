@@ -9,8 +9,12 @@ const OrderItemSchema = new mongoose.Schema({
   name: { type: String, required: true },
   qty: { type: Number, required: true, min: 1 },
   price: { type: Number, required: true, min: 0 },
-  image: { type: String, default: "" }, // Added image field
+  image: { type: String, default: "" },
   notes: { type: String, default: "" },
+
+  // Item-specific rating
+  rating: { type: Number, min: 1, max: 5, default: null },
+  review: { type: String, default: "" },
 });
 
 const OrderSchema = new mongoose.Schema(
