@@ -360,3 +360,56 @@ export const assignOwner = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
+// Get restaurant ratings and statistics
+export const getRestaurantRatings = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const restaurant = await Restaurant.findById(id);
+    if (!restaurant || restaurant.isDeleted) {
+      return res.status(404).json({ message: "Restaurant not found" });
+    }
+
+    res.json({
+      success: true,
+      restaurantId: restaurant._id,
+      restaurantName: restaurant.name,
+      averageRating: restaurant.averageRating,
+      totalRatings: restaurant.totalRatings,
+      ratingBreakdown: restaurant.ratingBreakdown,
+    });
+  } catch (err) {
+    console.error("getRestaurantRatings:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// Get menu item ratings
+export const getMenuItemRatings = async (req, res) => {
+  try {
+    const { id, itemId } = req.params;
+
+    const restaurant = await Restaurant.findById(id);
+    if (!restaurant || restaurant.isDeleted) {
+      return res.status(404).json({ message: "Restaurant not found" });
+    }
+
+    const menuItem = restaurant.menu.id(itemId);
+    if (!menuItem) {
+      return res.status(404).json({ message: "Menu item not found" });
+    }
+
+    res.json({
+      success: true,
+      menuItemId: menuItem._id,
+      name: menuItem.name,
+      averageRating: menuItem.averageRating,
+      totalRatings: menuItem.totalRatings,
+      ratingBreakdown: menuItem.ratingBreakdown,
+    });
+  } catch (err) {
+    console.error("getMenuItemRatings:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};

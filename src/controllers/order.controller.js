@@ -777,20 +777,20 @@ export const removeCoins = async (req, res) => {
   }
 };
 
-// Rate and review order
+// Rate and review order with food items
 export const rateOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const { rating, review } = req.body;
+    const { rating, review, itemRatings } = req.body;
     const userId = req.user.id;
 
     if (!rating || rating < 1 || rating > 5) {
       return res
         .status(400)
-        .json({ message: "Rating must be between 1 and 5" });
+        .json({ message: "Restaurant rating must be between 1 and 5" });
     }
 
-    const order = await Order.findById(id);
+    const order = await Order.findById(id).populate("restaurant");
     if (!order || order.isDeleted) {
       return res.status(404).json({ message: "Order not found" });
     }
@@ -812,15 +812,111 @@ export const rateOrder = async (req, res) => {
       return res.status(400).json({ message: "Order already rated" });
     }
 
+    // Update order with restaurant rating
     order.rating = rating;
     order.review = review || "";
     order.ratedAt = new Date();
+
+    // Update individual item ratings if provided
+    if (itemRatings && Array.isArray(itemRatings)) {
+      itemRatings.forEach((itemRating) => {
+        const orderItem = order.items.id(itemRating.itemId);
+        if (orderItem && itemRating.rating >= 1 && itemRating.rating <= 5) {
+          orderItem.rating = itemRating.rating;
+          orderItem.review = itemRating.review || "";
+        }
+      });
+    }
+
     await order.save();
+
+    // Update restaurant rating statistics
+    const restaurant = await Restaurant.findById(order.restaurant._id);
+    if (restaurant) {
+      // Update restaurant rating breakdown
+      const starField = `${
+        ["oneStar", "twoStar", "threeStar", "fourStar", "fiveStar"][rating - 1]
+      }`;
+      restaurant.ratingBreakdown[starField] += 1;
+      restaurant.totalRatings += 1;
+
+      // Calculate new average rating
+      const totalStars =
+        restaurant.ratingBreakdown.oneStar * 1 +
+        restaurant.ratingBreakdown.twoStar * 2 +
+        restaurant.ratingBreakdown.threeStar * 3 +
+        restaurant.ratingBreakdown.fourStar * 4 +
+        restaurant.ratingBreakdown.fiveStar * 5;
+      restaurant.averageRating = +(
+        totalStars / restaurant.totalRatings
+      ).toFixed(2);
+
+      // Update menu item ratings if provided
+      if (itemRatings && Array.isArray(itemRatings)) {
+        itemRatings.forEach((itemRating) => {
+          const menuItem = restaurant.menu.id(itemRating.menuItemId);
+          if (menuItem && itemRating.rating >= 1 && itemRating.rating <= 5) {
+            const itemStarField = `${
+              ["oneStar", "twoStar", "threeStar", "fourStar", "fiveStar"][
+                itemRating.rating - 1
+              ]
+            }`;
+            menuItem.ratingBreakdown[itemStarField] += 1;
+            menuItem.totalRatings += 1;
+
+            // Calculate menu item average
+            const itemTotalStars =
+              menuItem.ratingBreakdown.oneStar * 1 +
+              menuItem.ratingBreakdown.twoStar * 2 +
+              menuItem.ratingBreakdown.threeStar * 3 +
+              menuItem.ratingBreakdown.fourStar * 4 +
+              menuItem.ratingBreakdown.fiveStar * 5;
+            menuItem.averageRating = +(
+              itemTotalStars / menuItem.totalRatings
+            ).toFixed(2);
+          }
+        });
+      }
+
+      await restaurant.save();
+    }
+
+    // Fetch updated order with populated data
+    const updatedOrder = await Order.findById(id)
+      .populate("customer restaurant")
+      .lean();
+
+    // Get restaurant statistics
+    const restaurantStats = {
+      restaurantId: restaurant._id,
+      averageRating: restaurant.averageRating,
+      totalRatings: restaurant.totalRatings,
+      ratingBreakdown: restaurant.ratingBreakdown,
+    };
+
+    // Get menu item statistics for rated items
+    const menuItemStats = [];
+    if (itemRatings && Array.isArray(itemRatings)) {
+      itemRatings.forEach((itemRating) => {
+        const menuItem = restaurant.menu.id(itemRating.menuItemId);
+        if (menuItem) {
+          menuItemStats.push({
+            menuItemId: menuItem._id,
+            name: menuItem.name,
+            averageRating: menuItem.averageRating,
+            totalRatings: menuItem.totalRatings,
+            ratingBreakdown: menuItem.ratingBreakdown,
+          });
+        }
+      });
+    }
 
     res.json({
       success: true,
       message: "Rating submitted successfully",
-      order,
+      order: updatedOrder,
+      restaurantStats,
+      menuItemStats,
     });
   } catch (err) {
     console.error("rateOrder:", err);
