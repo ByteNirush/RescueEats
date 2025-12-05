@@ -157,6 +157,17 @@ export const createOrder = async (req, res) => {
       status: "pending",
     });
 
+    // 5) Deduct coins immediately for COD orders (no webhook for COD)
+    // For other payment methods, coins will be deducted in payment webhook upon success
+    if (paymentMethod === "cod" && coinsUsed > 0) {
+      const Game = mongoose.model("Game");
+      await Game.findOneAndUpdate(
+        { user: req.user.id },
+        { $inc: { coins: -coinsUsed } }
+      );
+      console.log(`[COD] Deducted ${coinsUsed} coins from user ${req.user.id}`);
+    }
+
     // Emit real-time event: new order for restaurant dashboards
     if (req.io)
       req.io.to(`restaurant_${restaurantId}`).emit("order:created", order);
