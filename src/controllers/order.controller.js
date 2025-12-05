@@ -165,7 +165,6 @@ export const createOrder = async (req, res) => {
         { user: req.user.id },
         { $inc: { coins: -coinsUsed } }
       );
-      console.log(`[COD] Deducted ${coinsUsed} coins from user ${req.user.id}`);
     }
 
     // Emit real-time event: new order for restaurant dashboards
@@ -194,25 +193,16 @@ export const getOrders = async (req, res) => {
     const skip = (page - 1) * limit;
     const { id: userId, role } = req.user;
 
-    // Debug logging
-    console.log("[getOrders] Request from user:", { userId, role });
-
     const filter = { isDeleted: false };
     if (status) filter.status = status;
 
     if (role === "user") {
       filter.customer = userId;
-      console.log("[getOrders] Filtering orders for customer:", userId);
     } else if (role === "restaurant") {
       const restaurant = await Restaurant.findOne({ owner: userId });
       if (restaurant) {
         filter.restaurant = restaurant._id;
-        console.log(
-          "[getOrders] Filtering orders for restaurant:",
-          restaurant._id
-        );
       } else {
-        console.log("[getOrders] No restaurant found for owner:", userId);
         return res.json({
           orders: [],
           total: 0,
@@ -220,11 +210,7 @@ export const getOrders = async (req, res) => {
           pages: 0,
         });
       }
-    } else {
-      console.log("[getOrders] Admin/other role - returning all orders");
     }
-
-    console.log("[getOrders] Final filter:", JSON.stringify(filter));
 
     const [orders, count] = await Promise.all([
       Order.find(filter)
@@ -235,10 +221,6 @@ export const getOrders = async (req, res) => {
         .lean(),
       Order.countDocuments(filter),
     ]);
-
-    console.log(
-      `[getOrders] Found ${orders.length} orders for user ${userId} (role: ${role})`
-    );
 
     res.json({
       orders,
