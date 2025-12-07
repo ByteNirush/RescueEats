@@ -475,6 +475,8 @@ export const applyDiscountToMarketplaceItem = async (req, res) => {
  * PURCHASE - User purchases a marketplace item
  * POST /api/marketplace/:id/purchase
  * Authenticated: User only
+ *
+ * This creates a normal order in the system, same as regular orders
  */
 export const purchaseMarketplaceItem = async (req, res) => {
   try {
@@ -518,44 +520,61 @@ export const purchaseMarketplaceItem = async (req, res) => {
       });
     }
 
-    // Create a new order for this purchase
+    // Calculate pricing same as normal orders
+    const selectedOrderType = orderType || "pickup";
+    const deliveryCharge = selectedOrderType === "pickup" ? 0 : 50; // Same as normal orders
+    const subtotal = item.discountedPrice;
+    const total = subtotal + deliveryCharge;
+
+    // Create a new order for this purchase - SAME STRUCTURE AS NORMAL ORDERS
     const Order = mongoose.model("Order");
     const newOrder = await Order.create({
       customer: userId,
       restaurant: item.restaurant._id,
       items: item.items,
       status: "pending",
-      orderType: orderType || "pickup", // Marketplace items default to pickup
-      subtotal: item.discountedPrice,
-      deliveryCharge: 0, // No delivery charge for marketplace pickup
+      orderType: selectedOrderType,
+
+      // Pricing - same structure as normal orders
+      subtotal: subtotal,
+      deliveryCharge: deliveryCharge,
       tax: 0,
       serviceCharge: 0,
-      discount: item.originalPrice - item.discountedPrice, // The discount amount
-      total: item.discountedPrice,
+      discount: item.originalPrice - item.discountedPrice, // Marketplace discount
+      total: total,
+
+      // No coin usage for marketplace orders
       coinsUsed: 0,
       coinDiscount: 0,
+
       paymentMethod: paymentMethod || "cod",
       paymentStatus: "pending",
       deliveryAddress,
       contactPhone,
-      notes:
-        notes || `Marketplace order: ${item.cancelReason || "Discounted food"}`,
-      isMarketplaceOrder: true, // Flag to identify marketplace orders
+      notes: notes || `Rescue food deal - ${item.discountPercent}% off`,
+
+      // Marketplace tracking
+      isMarketplaceOrder: true,
+      marketplaceItemId: item._id,
     });
 
     // Mark the marketplace item as sold
     await item.markAsSold(userId);
 
-    // Emit socket events
+    // Populate the order for response - same as normal orders
+    await newOrder.populate("restaurant", "name image address phone");
+
+    // Emit socket events - SAME AS NORMAL ORDER CREATION
     if (req.io) {
+      // Notify restaurant of new order (same event as normal orders)
+      req.io
+        .to(`restaurant_${item.restaurant._id}`)
+        .emit("order:created", newOrder);
+
+      // Also emit marketplace specific event
       req.io.emit("marketplace:item_sold", {
         itemId: item._id,
         restaurantId: item.restaurant._id,
-      });
-
-      req.io.to(`restaurant_${item.restaurant.owner}`).emit("order:new", {
-        orderId: newOrder._id,
-        type: "marketplace",
       });
     }
 
