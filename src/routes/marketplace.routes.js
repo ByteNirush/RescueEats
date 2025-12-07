@@ -9,6 +9,7 @@ import {
   applyDiscountToMarketplaceItem,
   getPendingDiscountItems,
   getDiscountedItems,
+  getUserCanceledOrders,
 } from "../controllers/marketplace.controller.js";
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
 
@@ -39,6 +40,14 @@ router.get(
   verifyToken,
   authorizeRoles("restaurant"),
   getDiscountedItems
+);
+
+// Get user's canceled orders (Customer cancellation screen)
+router.get(
+  "/my-cancellations",
+  verifyToken,
+  authorizeRoles("user"),
+  getUserCanceledOrders
 );
 
 // Single item by ID - MUST come after specific paths
