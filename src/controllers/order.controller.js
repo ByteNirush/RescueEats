@@ -493,13 +493,14 @@ export const paymentWebhook = async (req, res) => {
 };
 
 /**
- * Cancel Order - Restaurant marks order as canceled and sets discount
+ * Cancel Order - Restaurant marks order as canceled (NO DISCOUNT HERE)
+ * Discount is applied later in the Marketplace screen
  * POST /api/orders/:orderId/cancel
  */
 export const cancelOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { discountPercent = 0, cancelReason } = req.body;
+    const { cancelReason } = req.body;
     const userId = req.user.id;
     const role = req.user.role;
 
@@ -530,51 +531,49 @@ export const cancelOrder = async (req, res) => {
         });
       }
 
-      // When restaurant cancels after cooking started, auto-add to marketplace
-      // This is the key integration point!
+      // When restaurant cancels, auto-add to marketplace WITHOUT discount
+      // Discount will be applied later via marketplace screen
       const CanceledOrderMarketplace = mongoose.model(
         "CanceledOrderMarketplace"
       );
 
-      // Calculate discounted price
+      // Store original price, NO discount applied here
       const originalPrice = order.total;
-      const actualDiscount = Math.max(0, Math.min(100, discountPercent));
-      const discountAmount = (originalPrice * actualDiscount) / 100;
-      const discountedPrice = +(originalPrice - discountAmount).toFixed(2);
 
-      // Update order
+      // Update order - remove any existing discount, mark as canceled
       order.isCanceled = true;
       order.status = "cancelled";
       order.originalPrice = originalPrice;
-      order.discountPercent = actualDiscount;
-      order.discountedPrice = discountedPrice;
+      order.discountPercent = 0; // No discount at cancel time
+      order.discountedPrice = originalPrice; // Same as original (no discount)
+      order.discount = 0; // Remove any cart discount
       order.canceledAt = new Date();
-      order.cancelReason =
-        cancelReason || "Restaurant canceled - food available at discount";
+      order.cancelReason = cancelReason || "Canceled by restaurant";
 
       await order.save();
 
-      // Automatically create marketplace entry
+      // Automatically create marketplace entry with pending_discount status
       const marketplaceItem = await CanceledOrderMarketplace.create({
         order: order._id,
         restaurant: restaurant._id,
         originalCustomer: order.customer,
         items: order.items,
         originalPrice,
-        discountPercent: actualDiscount,
-        discountedPrice,
+        discountPercent: 0, // No discount yet
+        discountedPrice: originalPrice, // Will be updated when discount is applied
         canceledAt: new Date(),
         cancelReason: order.cancelReason,
         availability: "available",
+        marketplaceStatus: "pending_discount", // Waiting for discount in marketplace
+        discountApplied: false,
       });
 
       // Emit socket event for real-time updates
       if (req.io) {
-        req.io.emit("marketplace:new_item", {
+        req.io.emit("marketplace:new_pending_item", {
           itemId: marketplaceItem._id,
           restaurantId: restaurant._id,
-          discountPercent: actualDiscount,
-          discountedPrice,
+          originalPrice,
         });
 
         req.io.to(`customer_${order.customer}`).emit("order:cancelled", {
@@ -585,7 +584,8 @@ export const cancelOrder = async (req, res) => {
 
       return res.json({
         success: true,
-        message: "Order canceled and added to marketplace",
+        message:
+          "Order canceled and added to marketplace. Please add discount in Marketplace screen.",
         order,
         marketplaceItem,
       });
