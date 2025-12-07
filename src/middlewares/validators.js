@@ -32,10 +32,9 @@ export const validateOrder = [
     handleValidationErrors
 ];
 
-// Cancel order validation
+// Cancel order validation (discount is now applied in Marketplace, not here)
 export const validateCancelOrder = [
     param('orderId').isMongoId().withMessage('Invalid order ID'),
-    body('discountPercent').isInt({ min: 20, max: 40 }).withMessage('Discount must be between 20-40%'),
     body('cancelReason').optional().isLength({ max: 500 }).withMessage('Cancel reason too long'),
     handleValidationErrors
 ];
