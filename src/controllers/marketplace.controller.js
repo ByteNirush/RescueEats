@@ -705,6 +705,72 @@ export const getMyMarketplaceItems = async (req, res) => {
 };
 
 /**
+ * GET - Get user's canceled orders (for customer view)
+ * GET /api/marketplace/my-cancellations
+ * Authenticated: User only
+ */
+export const getUserCanceledOrders = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { page = 1, limit = 20 } = req.query;
+
+    const query = {
+      originalCustomer: userId,
+      isDeleted: false,
+      marketplaceStatus: "discounted", // Only show orders with discount applied
+      discountApplied: true,
+    };
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      CanceledOrderMarketplace.find(query)
+        .populate("restaurant", "name image address phone")
+        .populate("order", "items notes")
+        .sort({ discountAppliedAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      CanceledOrderMarketplace.countDocuments(query),
+    ]);
+
+    // Transform items for user view
+    const transformedItems = items.map((item) => ({
+      id: item._id,
+      orderId: item.order?._id,
+      restaurantName: item.restaurant?.name || "Unknown Restaurant",
+      restaurantImage: item.restaurant?.image || "",
+      items: item.items,
+      originalPrice: item.originalPrice,
+      discountPercent: item.discountPercent,
+      discountedPrice: item.discountedPrice,
+      cancelReason: item.cancelReason,
+      canceledAt: item.canceledAt,
+      discountAppliedAt: item.discountAppliedAt,
+      expiresAt: item.expiresAt,
+      availability: item.availability,
+    }));
+
+    res.json({
+      success: true,
+      items: transformedItems,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (err) {
+    console.error("getUserCanceledOrders:", err);
+    res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+/**
  * Background job to auto-expire old marketplace items
  * Should be called periodically (e.g., via cron job)
  */
