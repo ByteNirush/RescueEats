@@ -14,11 +14,10 @@ import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-// Public routes - Browse marketplace
+// Public routes - Browse marketplace (must be first)
 router.get("/", getMarketplaceItems);
-router.get("/:id", getMarketplaceItemById);
 
-// Restaurant-only routes - Manage own items
+// Restaurant-only routes - Specific paths BEFORE /:id to avoid conflicts
 router.get(
   "/my-items/list",
   verifyToken,
@@ -26,7 +25,7 @@ router.get(
   getMyMarketplaceItems
 );
 
-// NEW: Get pending discount items (Marketplace screen)
+// Get pending discount items (Marketplace screen)
 router.get(
   "/pending/list",
   verifyToken,
@@ -34,13 +33,16 @@ router.get(
   getPendingDiscountItems
 );
 
-// NEW: Get discounted items (Canceled Dashboard)
+// Get discounted items (Canceled Dashboard)
 router.get(
   "/discounted/list",
   verifyToken,
   authorizeRoles("restaurant"),
   getDiscountedItems
 );
+
+// Single item by ID - MUST come after specific paths
+router.get("/:id", getMarketplaceItemById);
 
 router.post(
   "/",
@@ -49,7 +51,7 @@ router.post(
   createMarketplaceItem
 );
 
-// NEW: Apply discount and move to Canceled Dashboard
+// Apply discount and move to Canceled Dashboard
 router.post(
   "/:id/apply-discount",
   verifyToken,
