@@ -97,6 +97,14 @@ const OrderSchema = new mongoose.Schema(
     notes: { type: String, default: "" },
     estimatedTimeMins: { type: Number, default: null },
 
+    // Marketplace order flag
+    isMarketplaceOrder: { type: Boolean, default: false },
+    marketplaceItemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "CanceledOrderMarketplace",
+      default: null,
+    },
+
     // Rating & Review
     rating: { type: Number, min: 1, max: 5, default: null },
     review: { type: String, default: "" },

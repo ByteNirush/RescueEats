@@ -163,7 +163,7 @@ export const createMarketplaceItem = async (req, res) => {
 /**
  * READ - Get all marketplace items (with filters)
  * GET /api/marketplace
- * Public access
+ * Public access - Only shows items that have discount applied
  */
 export const getMarketplaceItems = async (req, res) => {
   try {
@@ -180,6 +180,8 @@ export const getMarketplaceItems = async (req, res) => {
     const query = {
       isDeleted: false,
       availability,
+      marketplaceStatus: "discounted", // Only show items with discount applied
+      discountApplied: true,
     };
 
     // Filter by cuisine (need to join with restaurant)
@@ -462,6 +464,109 @@ export const applyDiscountToMarketplaceItem = async (req, res) => {
     });
   } catch (err) {
     console.error("applyDiscountToMarketplaceItem:", err);
+    res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * PURCHASE - User purchases a marketplace item
+ * POST /api/marketplace/:id/purchase
+ * Authenticated: User only
+ */
+export const purchaseMarketplaceItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { deliveryAddress, contactPhone, paymentMethod, notes, orderType } =
+      req.body;
+    const userId = req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid item ID" });
+    }
+
+    // Validate required fields
+    if (!deliveryAddress || !contactPhone) {
+      return res.status(400).json({
+        message: "Delivery address and contact phone are required",
+      });
+    }
+
+    // Find the marketplace item
+    const item = await CanceledOrderMarketplace.findOne({
+      _id: id,
+      isDeleted: false,
+      availability: "available",
+      marketplaceStatus: "discounted",
+      discountApplied: true,
+    }).populate("restaurant", "name image address phone owner");
+
+    if (!item) {
+      return res.status(404).json({
+        message: "Item not found or no longer available",
+      });
+    }
+
+    // Check if not expired
+    if (item.expiresAt && new Date() > item.expiresAt) {
+      item.availability = "expired";
+      await item.save();
+      return res.status(400).json({
+        message: "This item has expired",
+      });
+    }
+
+    // Create a new order for this purchase
+    const Order = mongoose.model("Order");
+    const newOrder = await Order.create({
+      customer: userId,
+      restaurant: item.restaurant._id,
+      items: item.items,
+      status: "pending",
+      orderType: orderType || "pickup", // Marketplace items default to pickup
+      subtotal: item.discountedPrice,
+      deliveryCharge: 0, // No delivery charge for marketplace pickup
+      tax: 0,
+      serviceCharge: 0,
+      discount: item.originalPrice - item.discountedPrice, // The discount amount
+      total: item.discountedPrice,
+      coinsUsed: 0,
+      coinDiscount: 0,
+      paymentMethod: paymentMethod || "cod",
+      paymentStatus: "pending",
+      deliveryAddress,
+      contactPhone,
+      notes:
+        notes || `Marketplace order: ${item.cancelReason || "Discounted food"}`,
+      isMarketplaceOrder: true, // Flag to identify marketplace orders
+    });
+
+    // Mark the marketplace item as sold
+    await item.markAsSold(userId);
+
+    // Emit socket events
+    if (req.io) {
+      req.io.emit("marketplace:item_sold", {
+        itemId: item._id,
+        restaurantId: item.restaurant._id,
+      });
+
+      req.io.to(`restaurant_${item.restaurant.owner}`).emit("order:new", {
+        orderId: newOrder._id,
+        type: "marketplace",
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "Order placed successfully!",
+      order: newOrder,
+      marketplaceItem: item,
+    });
+  } catch (err) {
+    console.error("purchaseMarketplaceItem:", err);
     res.status(500).json({
       message: "Server error",
       error: err.message,

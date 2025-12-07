@@ -10,6 +10,7 @@ import {
   getPendingDiscountItems,
   getDiscountedItems,
   getUserCanceledOrders,
+  purchaseMarketplaceItem,
 } from "../controllers/marketplace.controller.js";
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
 
@@ -66,6 +67,14 @@ router.post(
   verifyToken,
   authorizeRoles("restaurant"),
   applyDiscountToMarketplaceItem
+);
+
+// Purchase marketplace item (User only)
+router.post(
+  "/:id/purchase",
+  verifyToken,
+  authorizeRoles("user"),
+  purchaseMarketplaceItem
 );
 
 router.patch(
