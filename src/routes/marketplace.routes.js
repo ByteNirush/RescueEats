@@ -6,6 +6,9 @@ import {
   updateMarketplaceItem,
   deleteMarketplaceItem,
   getMyMarketplaceItems,
+  applyDiscountToMarketplaceItem,
+  getPendingDiscountItems,
+  getDiscountedItems,
 } from "../controllers/marketplace.controller.js";
 import { verifyToken, authorizeRoles } from "../middlewares/auth.middleware.js";
 
@@ -23,11 +26,35 @@ router.get(
   getMyMarketplaceItems
 );
 
+// NEW: Get pending discount items (Marketplace screen)
+router.get(
+  "/pending/list",
+  verifyToken,
+  authorizeRoles("restaurant"),
+  getPendingDiscountItems
+);
+
+// NEW: Get discounted items (Canceled Dashboard)
+router.get(
+  "/discounted/list",
+  verifyToken,
+  authorizeRoles("restaurant"),
+  getDiscountedItems
+);
+
 router.post(
   "/",
   verifyToken,
   authorizeRoles("restaurant"),
   createMarketplaceItem
+);
+
+// NEW: Apply discount and move to Canceled Dashboard
+router.post(
+  "/:id/apply-discount",
+  verifyToken,
+  authorizeRoles("restaurant"),
+  applyDiscountToMarketplaceItem
 );
 
 router.patch(

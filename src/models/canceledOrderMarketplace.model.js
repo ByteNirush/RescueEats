@@ -68,6 +68,27 @@ const CanceledOrderMarketplaceSchema = new mongoose.Schema(
       default: "available",
     },
 
+    // Marketplace Flow Status
+    // pending_discount: Just canceled, waiting for restaurant to add discount
+    // discounted: Discount applied, moved to canceled dashboard (final list)
+    marketplaceStatus: {
+      type: String,
+      enum: ["pending_discount", "discounted"],
+      default: "pending_discount",
+    },
+
+    // Whether discount has been applied by restaurant
+    discountApplied: {
+      type: Boolean,
+      default: false,
+    },
+
+    // When discount was applied
+    discountAppliedAt: {
+      type: Date,
+      default: null,
+    },
+
     // When the order was canceled and added to marketplace
     canceledAt: {
       type: Date,
@@ -120,9 +141,14 @@ const CanceledOrderMarketplaceSchema = new mongoose.Schema(
 
 // Indexes for efficient queries
 CanceledOrderMarketplaceSchema.index({ restaurant: 1, availability: 1 });
+CanceledOrderMarketplaceSchema.index({ restaurant: 1, marketplaceStatus: 1 });
 CanceledOrderMarketplaceSchema.index({ availability: 1, expiresAt: 1 });
 CanceledOrderMarketplaceSchema.index({ discountedPrice: 1 });
 CanceledOrderMarketplaceSchema.index({ canceledAt: -1 });
+CanceledOrderMarketplaceSchema.index({
+  marketplaceStatus: 1,
+  discountApplied: 1,
+});
 
 // Virtual for checking if expired
 CanceledOrderMarketplaceSchema.virtual("isExpired").get(function () {
@@ -152,6 +178,19 @@ CanceledOrderMarketplaceSchema.methods.updateDiscount = function (
   this.discountPercent = newDiscountPercent;
   this.discountedPrice =
     this.originalPrice - (this.originalPrice * newDiscountPercent) / 100;
+  return this.save();
+};
+
+// Method to apply discount and move to canceled dashboard
+CanceledOrderMarketplaceSchema.methods.applyDiscountAndFinalize = function (
+  discountPercent
+) {
+  this.discountPercent = discountPercent;
+  this.discountedPrice =
+    this.originalPrice - (this.originalPrice * discountPercent) / 100;
+  this.discountApplied = true;
+  this.discountAppliedAt = new Date();
+  this.marketplaceStatus = "discounted";
   return this.save();
 };
 

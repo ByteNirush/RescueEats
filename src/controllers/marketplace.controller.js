@@ -376,6 +376,218 @@ export const updateMarketplaceItem = async (req, res) => {
 };
 
 /**
+ * APPLY DISCOUNT - Apply discount to pending item and move to Canceled Dashboard
+ * POST /api/marketplace/:id/apply-discount
+ * Authenticated: Restaurant only (must own the item)
+ *
+ * This is the key endpoint for the new flow:
+ * 1. Restaurant cancels order → goes to Marketplace (pending_discount)
+ * 2. Restaurant adds discount here → moves to Canceled Dashboard (discounted)
+ */
+export const applyDiscountToMarketplaceItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { discountPercent } = req.body;
+    const userId = req.user.id;
+
+    // Validate discount percent
+    if (discountPercent === undefined || discountPercent === null) {
+      return res.status(400).json({
+        message: "Discount percent is required",
+      });
+    }
+
+    if (discountPercent < 0 || discountPercent > 100) {
+      return res.status(400).json({
+        message: "Discount percent must be between 0 and 100",
+      });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid item ID" });
+    }
+
+    // Find restaurant owned by this user
+    const restaurant = await Restaurant.findOne({ owner: userId });
+    if (!restaurant) {
+      return res.status(403).json({
+        message: "Not authorized as restaurant owner",
+      });
+    }
+
+    // Find the marketplace item (must be in pending_discount status)
+    const item = await CanceledOrderMarketplace.findOne({
+      _id: id,
+      restaurant: restaurant._id,
+      isDeleted: false,
+      marketplaceStatus: "pending_discount",
+    });
+
+    if (!item) {
+      return res.status(404).json({
+        message:
+          "Marketplace item not found, already processed, or access denied",
+      });
+    }
+
+    // Apply discount and finalize (move to canceled dashboard)
+    await item.applyDiscountAndFinalize(discountPercent);
+
+    // Also update the original order with the discount
+    const Order = mongoose.model("Order");
+    await Order.findByIdAndUpdate(item.order, {
+      discountPercent: discountPercent,
+      discountedPrice: item.discountedPrice,
+    });
+
+    // Populate for response
+    await item.populate("restaurant", "name image address phone");
+
+    // Emit socket event for real-time updates
+    if (req.io) {
+      req.io.emit("marketplace:item_discounted", {
+        itemId: item._id,
+        restaurantId: restaurant._id,
+        discountPercent: item.discountPercent,
+        discountedPrice: item.discountedPrice,
+        marketplaceStatus: "discounted",
+      });
+    }
+
+    res.json({
+      success: true,
+      message:
+        "Discount applied successfully. Order moved to Canceled Dashboard.",
+      item,
+    });
+  } catch (err) {
+    console.error("applyDiscountToMarketplaceItem:", err);
+    res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * GET - Get pending discount items (Marketplace screen)
+ * GET /api/marketplace/pending
+ * Authenticated: Restaurant only
+ */
+export const getPendingDiscountItems = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { page = 1, limit = 20 } = req.query;
+
+    // Find restaurant owned by this user
+    const restaurant = await Restaurant.findOne({ owner: userId });
+    if (!restaurant) {
+      return res.status(403).json({
+        message: "Not authorized as restaurant owner",
+      });
+    }
+
+    const query = {
+      restaurant: restaurant._id,
+      isDeleted: false,
+      marketplaceStatus: "pending_discount",
+    };
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      CanceledOrderMarketplace.find(query)
+        .populate("order", "items notes deliveryAddress contactPhone")
+        .populate("originalCustomer", "name phone")
+        .sort({ canceledAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      CanceledOrderMarketplace.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      items,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (err) {
+    console.error("getPendingDiscountItems:", err);
+    res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * GET - Get discounted items (Canceled Dashboard)
+ * GET /api/marketplace/discounted
+ * Authenticated: Restaurant only
+ */
+export const getDiscountedItems = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { availability, page = 1, limit = 20 } = req.query;
+
+    // Find restaurant owned by this user
+    const restaurant = await Restaurant.findOne({ owner: userId });
+    if (!restaurant) {
+      return res.status(403).json({
+        message: "Not authorized as restaurant owner",
+      });
+    }
+
+    const query = {
+      restaurant: restaurant._id,
+      isDeleted: false,
+      marketplaceStatus: "discounted",
+      discountApplied: true,
+    };
+
+    // Optional filter by availability (available, sold, expired)
+    if (availability) {
+      query.availability = availability;
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      CanceledOrderMarketplace.find(query)
+        .populate("order", "items notes deliveryAddress contactPhone")
+        .populate("originalCustomer", "name phone")
+        .sort({ discountAppliedAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      CanceledOrderMarketplace.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      items,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (err) {
+    console.error("getDiscountedItems:", err);
+    res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+/**
  * DELETE - Remove marketplace item (soft delete)
  * DELETE /api/marketplace/:id
  * Authenticated: Restaurant only (must own the item)
