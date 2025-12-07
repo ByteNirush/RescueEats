@@ -481,8 +481,14 @@ export const applyDiscountToMarketplaceItem = async (req, res) => {
 export const purchaseMarketplaceItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { deliveryAddress, contactPhone, paymentMethod, notes, orderType } =
-      req.body;
+    const {
+      deliveryAddress,
+      contactPhone,
+      paymentMethod,
+      notes,
+      orderType,
+      useCoins,
+    } = req.body;
     const userId = req.user.id;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -524,7 +530,19 @@ export const purchaseMarketplaceItem = async (req, res) => {
     const selectedOrderType = orderType || "pickup";
     const deliveryCharge = selectedOrderType === "pickup" ? 0 : 50; // Same as normal orders
     const subtotal = item.discountedPrice;
-    const total = subtotal + deliveryCharge;
+
+    // Handle coin redemption - same logic as normal orders
+    const User = mongoose.model("User");
+    const user = await User.findById(userId);
+    let coinsUsed = 0;
+    let coinDiscount = 0;
+
+    if (useCoins && user && user.coins >= 100) {
+      coinsUsed = 100; // 100 coins = Rs. 10 off
+      coinDiscount = 10;
+    }
+
+    const total = subtotal + deliveryCharge - coinDiscount;
 
     // Create a new order for this purchase - SAME STRUCTURE AS NORMAL ORDERS
     const Order = mongoose.model("Order");
@@ -543,9 +561,9 @@ export const purchaseMarketplaceItem = async (req, res) => {
       discount: item.originalPrice - item.discountedPrice, // Marketplace discount
       total: total,
 
-      // No coin usage for marketplace orders
-      coinsUsed: 0,
-      coinDiscount: 0,
+      // Coin usage - same as normal orders
+      coinsUsed: coinsUsed,
+      coinDiscount: coinDiscount,
 
       paymentMethod: paymentMethod || "cod",
       paymentStatus: "pending",
@@ -557,6 +575,12 @@ export const purchaseMarketplaceItem = async (req, res) => {
       isMarketplaceOrder: true,
       marketplaceItemId: item._id,
     });
+
+    // Deduct coins from user if used
+    if (coinsUsed > 0 && user) {
+      user.coins -= coinsUsed;
+      await user.save();
+    }
 
     // Mark the marketplace item as sold
     await item.markAsSold(userId);
