@@ -537,8 +537,9 @@ export const cancelOrder = async (req, res) => {
         "CanceledOrderMarketplace"
       );
 
-      // Store original price, NO discount applied here
-      const originalPrice = order.total;
+      // Store original price - ACTUAL food value before any coin discount
+      // order.total is after coin discount, so we add back coinDiscount to get actual price
+      const originalPrice = order.total + (order.coinDiscount || 0);
 
       // Update order - remove any existing discount, mark as canceled
       order.isCanceled = true;
